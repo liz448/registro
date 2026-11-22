@@ -34,7 +34,7 @@ export default async function Home() {
             </h1>
             {/* 2. SUBTÍTULO ELEGANTE */}
             <p className="text-blue-200/80 font-bold tracking-[0.16em] sm:tracking-[0.2em] uppercase text-[10px] sm:text-xs md:text-sm pt-0.5 sm:pt-1 drop-shadow-md">
-              Clínica de Simulación 
+              Control de Personal Docente y Administrativo
             </p>
           </div>
 
@@ -55,7 +55,7 @@ export default async function Home() {
         <div className="flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-1.5 sm:py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm">
           <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></div>
           <p className="text-white/65 text-[10px] sm:text-xs md:text-sm font-medium tracking-wide text-center">
-            Sistema en Línea &bull; Universidad Científica del Sur &copy; {new Date().getFullYear()}
+            Sistema de Control de Asistencia en Línea &copy; {new Date().getFullYear()}
           </p>
         </div>
       </div>

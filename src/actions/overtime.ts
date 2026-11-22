@@ -135,8 +135,7 @@ export async function getOvertimeReportAction(params: {
     if (params.role && params.role !== "ALL") {
       where.user = { role: params.role }
     } else {
-      // Por defecto para horas extras se enfoca en TÉCNICOS (o todo el personal si se solicita)
-      where.user = { role: Role.TECNICO }
+      where.user = { role: { in: [Role.ADMINISTRATIVO, Role.DOCENTE] } }
     }
 
     const records = await prisma.attendanceRecord.findMany({

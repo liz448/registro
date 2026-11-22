@@ -32,7 +32,7 @@ import {
 
 interface DashboardDailyProgramProps {
   scopedCampusName?: string | null
-  lockedOperationalRole?: "PACIENTE_SIMULADO" | null
+  lockedOperationalRole?: "DOCENTE" | "ADMINISTRATIVO" | null
 }
 
 function formatSyncTimeLima(isoStr: string): string {
@@ -355,20 +355,18 @@ export function DashboardDailyProgram({
             Pacientes Simulados ({data?.patients.length ?? 0})
           </button>
 
-          {lockedOperationalRole !== "PACIENTE_SIMULADO" && (
-            <button
-              type="button"
-              onClick={() => setActiveView("docentes")}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
-                activeView === "docentes"
-                  ? "bg-[#1967D2] text-white shadow-sm"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              <UserCheck size={15} />
-              Docentes ({data?.docentes.length ?? 0})
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setActiveView("docentes")}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+              activeView === "docentes"
+                ? "bg-[#1967D2] text-white shadow-sm"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            <UserCheck size={15} />
+            Docentes ({data?.docentes.length ?? 0})
+          </button>
 
           <button
             type="button"

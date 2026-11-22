@@ -22,12 +22,12 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Portal de Asistencia | Clínica de Simulación UCSUR",
-  description: "Registro de asistencia para Docentes, Técnicos y Pacientes Simulados - Universidad Científica del Sur",
+  title: "Portal de Asistencia Institucional",
+  description: "Registro de asistencia para Docentes y Personal Administrativo",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Asistencia UCSUR",
+    title: "Asistencia",
   },
   formatDetection: {
     telephone: false,
@@ -36,7 +36,11 @@ export const metadata: Metadata = {
 
 import { Toaster } from "@/components/ui/sonner";
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="es"

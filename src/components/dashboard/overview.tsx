@@ -111,8 +111,7 @@ export function DashboardOverview({
   const salidas = todayRecords.filter((r) => r.type === "SALIDA").length
 
   const docentes = todayRecords.filter((r) => r.user?.role === "DOCENTE").length
-  const tecnicos = todayRecords.filter((r) => r.user?.role === "TECNICO").length
-  const pacientes = todayRecords.filter((r) => r.user?.role === "PACIENTE_SIMULADO").length
+  const administrativos = todayRecords.filter((r) => r.user?.role === "ADMINISTRATIVO").length
 
   const chartData = weekly.map((d, i) => ({
     date: i === weekly.length - 1 ? "Hoy" : d.label,
@@ -212,22 +211,12 @@ export function DashboardOverview({
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
-                  <Stethoscope size={20} />
-                </div>
-                <span className="font-bold text-slate-600">Pacientes Sim.</span>
-              </div>
-              <span className="text-2xl font-black text-slate-800">{pacientes}</span>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
                   <UserSquare2 size={20} />
                 </div>
-                <span className="font-bold text-slate-600">Técnicos</span>
+                <span className="font-bold text-slate-600">Administrativos</span>
               </div>
-              <span className="text-2xl font-black text-slate-800">{tecnicos}</span>
+              <span className="text-2xl font-black text-slate-800">{administrativos}</span>
             </div>
           </CardContent>
         </Card>

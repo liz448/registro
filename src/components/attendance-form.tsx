@@ -28,6 +28,8 @@ import {
   buildMobileRotationAlertPayload,
   type UserDailyProgramSummary,
   type TodayAttendanceRecordLite,
+  type UserModulesResolution,
+  type ResolvedModuleStatus,
 } from "@/lib/daily-program-api"
 import {
   registerServiceWorker,
@@ -76,8 +78,8 @@ const ROLE_UI_META: Record<
   string,
   { label: string; badgeClass: string; borderClass: string; accentBg: string }
 > = {
-  [Role.TECNICO]: {
-    label: "Técnico",
+  [Role.ADMINISTRATIVO]: {
+    label: "Administrativo",
     badgeClass: "bg-indigo-600 text-white",
     borderClass: "border-indigo-200",
     accentBg: "from-indigo-50/90 to-blue-50/70",
@@ -87,12 +89,6 @@ const ROLE_UI_META: Record<
     badgeClass: "bg-[#1967D2] text-white",
     borderClass: "border-blue-200",
     accentBg: "from-blue-50/90 to-slate-50/80",
-  },
-  [Role.PACIENTE_SIMULADO]: {
-    label: "Paciente Simulado",
-    badgeClass: "bg-emerald-600 text-white",
-    borderClass: "border-emerald-200",
-    accentBg: "from-emerald-50/90 to-teal-50/70",
   },
 }
 
@@ -641,7 +637,7 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
         setHasRememberedDni(true)
       }
 
-      if (res.user.role === Role.TECNICO && res.technicianAssignment) {
+      if (res.technicianAssignment) {
         setTechnicianAssignment(res.technicianAssignment)
         setSelectedShift((res.technicianAssignment.shift as Shift) || null)
       } else {
@@ -692,8 +688,8 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
       setValidatedUser({
         id: `offline_${dni}`,
         name: boundUserName ? `${boundUserName} (Modo Local)` : `Usuario DNI: ${dni} (Modo Local)`,
-        role: Role.TECNICO,
-        campusName: kioskConfig?.campusName || "Campus Villa",
+        role: Role.DOCENTE,
+        campusName: kioskConfig?.campusName || "Sede Principal",
       })
       setTodayLastRecord(null)
       setTechnicianAssignment(null)
@@ -712,19 +708,13 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
       setConnectionError(false)
       applyValidationResult(cachedHit, dni)
 
-      // Si es Docente o Paciente Simulado (o equipo personal verificando vínculo), sincronizar en segundo plano con el servidor
-      const hitRole = cachedHit?.user?.role
-      if (!kioskConfig || hitRole === Role.DOCENTE || hitRole === Role.PACIENTE_SIMULADO) {
-        if (hitRole === Role.DOCENTE || hitRole === Role.PACIENTE_SIMULADO) {
-          setIsRefreshingSchedule(true)
-        }
+      if (!kioskConfig) {
         void (async () => {
           try {
-            const fp = !kioskConfig
-              ? deviceFingerprintRef.current || (await getClientDeviceFingerprint())
-              : null
+            const fp =
+              deviceFingerprintRef.current || (await getClientDeviceFingerprint())
             if (fp) deviceFingerprintRef.current = fp
-            const freshRes = await validateUserAction(dni, undefined, true, fp)
+            const freshRes = await validateUserAction(dni, undefined, false, fp)
             if (freshRes?.isDeviceLockedToOtherDni || freshRes?.isDniBoundToOtherDevice) {
               applyValidationResult(freshRes, dni)
               return
@@ -737,8 +727,6 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
             }
           } catch {
             // Conservar el resultado en memoria si hay micro-corte
-          } finally {
-            setIsRefreshingSchedule(false)
           }
         })()
       }
@@ -979,25 +967,15 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
       )
     })
 
-  // Resolución automática de la clase actual para Docentes y Pacientes Simulados según el JSON/Excel
-  const isModuleRole =
-    validatedUser?.role === Role.DOCENTE || validatedUser?.role === Role.PACIENTE_SIMULADO
+  // Resolución automática de módulos deshabilitada en la nueva versión institucional
+  const isModuleRole = Boolean(false)
 
-  const moduleResolution =
-    isModuleRole && dailyProgram?.found && dailyProgram.sessions.length > 0
-      ? resolveUserModulesState(
-          dailyProgram.sessions,
-          todayRecords,
-          currentLimaMins,
-          validatedUser?.role
-        )
-      : null
+  const moduleResolution = (null as UserModulesResolution | null)
 
-  const effectiveActiveModule = moduleResolution?.activeModule ?? null
+  const effectiveActiveModule = (null as ResolvedModuleStatus | null)
 
-  // Aviso de fin de clase y rotación EXCLUSIVO para teléfonos (!kioskConfig), nunca en Estaciones Oficiales (PC fijas)
   const mobileRotationAlert = buildMobileRotationAlertPayload(
-    moduleResolution,
+    null,
     Boolean(kioskConfig),
     validatedUser?.role
   )
@@ -1048,7 +1026,7 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
         userName: validatedUser.name,
         role: validatedUser.role,
         campusName:
-          effectiveActiveModule?.campusName ||
+          (effectiveActiveModule as ResolvedModuleStatus | null)?.campusName ||
           (dailyProgram?.found ? dailyProgram.campusName : null) ||
           validatedUser.campusName ||
           "Campus Villa",
@@ -1093,22 +1071,14 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
     }
 
     const isKioskAuthorized = Boolean(kioskConfig?.token)
-    const detectedRole = validatedUser?.role || Role.TECNICO
+    const detectedRole = validatedUser?.role || Role.DOCENTE
     const resolvedCampus =
       technicianAssignment?.campusName ||
-      effectiveActiveModule?.campusName ||
-      (dailyProgram?.found ? dailyProgram.campusName : null) ||
       validatedUser?.campusName ||
       kioskConfig?.campusName ||
-      "Campus Villa"
-    const resolvedCourse =
-      effectiveActiveModule?.courseName ||
-      (dailyProgram?.found ? dailyProgram.courseName : undefined)
-    const resolvedExpectedEntry =
-      detectedRole === Role.TECNICO
-        ? technicianAssignment?.expectedEntryTime
-        : effectiveActiveModule?.horaInicio ||
-          (dailyProgram?.found ? dailyProgram.entryTime : undefined)
+      "Sede Principal"
+    const resolvedCourse = undefined
+    const resolvedExpectedEntry = technicianAssignment?.expectedEntryTime
 
     setIsSubmitting(type)
 
@@ -1627,8 +1597,8 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
                           setValidatedUser({
                             id: `offline_${watchDni}`,
                             name: `Usuario DNI: ${watchDni} (Modo Local)`,
-                            role: Role.TECNICO,
-                            campusName: kioskConfig?.campusName || "Campus Villa",
+                            role: Role.DOCENTE,
+                            campusName: kioskConfig?.campusName || "Sede Principal",
                           })
                           setConnectionError(false)
                           toast.info("Modo contingencia activado: Su marcación se guardará de inmediato en el dispositivo.")
@@ -1668,261 +1638,50 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
                       </span>
                     </div>
 
-                    {/* CASO 1: Resumen para TÉCNICOS (Quién marca, Hora que marca / turno y Sede) */}
-                    {validatedUser.role === Role.TECNICO && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                        <div className="bg-white/90 rounded-lg sm:rounded-xl p-2.5 sm:p-3.5 border border-slate-200/70 flex items-start gap-2.5 sm:gap-3">
-                          <Clock size={16} className="text-indigo-600 mt-0.5 shrink-0" />
-                          <div className="min-w-0">
-                            <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                              Hora de Marcación y Turno
-                            </p>
-                            <p className="text-xs sm:text-sm font-black text-slate-800">
-                              Marcando: <LiveMarkingTimeSpan className="text-indigo-700" />
-                            </p>
-                            {technicianAssignment && (
-                              <p className="text-[11px] sm:text-xs font-semibold text-slate-600 mt-0.5">
-                                Turno {SHIFT_LABELS[technicianAssignment.shift] || technicianAssignment.shift}:{" "}
-                                <span className="font-bold text-slate-800">
-                                  {technicianAssignment.expectedEntryTime} — {technicianAssignment.expectedExitTime || "15:00"}
-                                </span>
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="bg-white/90 rounded-lg sm:rounded-xl p-2.5 sm:p-3.5 border border-slate-200/70 flex items-start gap-2.5 sm:gap-3">
-                          <MapPin size={16} className="text-indigo-600 mt-0.5 shrink-0" />
-                          <div className="min-w-0">
-                            <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                              Sede Asignada
-                            </p>
-                            <p className="text-xs sm:text-sm font-black text-slate-800">
-                              {technicianAssignment?.campusName || validatedUser.campusName || "Campus Villa"}
-                            </p>
-                            <p className="text-[11px] sm:text-xs font-medium text-slate-500 mt-0.5">
-                              {technicianAssignment?.source === "SCHEDULE" ? "Según cronograma del día" : "Sede base asignada"}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* CASO 2: Resumen para DOCENTES y PACIENTES SIMULADOS */}
-                    {(validatedUser.role === Role.DOCENTE || validatedUser.role === Role.PACIENTE_SIMULADO) && (
-                      <div className="space-y-2.5 sm:space-y-3.5">
-                        {/* AVISO DE ACTIVACIÓN SOLO LA PRIMERA VEZ EN EL CELULAR */}
-                        {!kioskConfig && dailyProgram?.found && !mobileAlarmOnboarded && (
-                          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-blue-50 border border-blue-200 text-[11px] sm:text-xs animate-fade-in-up">
-                            <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                              <BellRing size={14} className="text-[#1967D2] shrink-0" />
-                              <span>
-                                Active las notificaciones del sistema para recibir avisos sobre otras apps o con el teléfono bloqueado
+                    {/* Resumen de Hora, Turno y Sede para Docentes y Administrativos */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                      <div className="bg-white/90 rounded-lg sm:rounded-xl p-2.5 sm:p-3.5 border border-slate-200/70 flex items-start gap-2.5 sm:gap-3">
+                        <Clock size={16} className="text-[#1967D2] mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                            Hora de Marcación y Turno
+                          </p>
+                          <p className="text-xs sm:text-sm font-black text-slate-800">
+                            Marcando: <LiveMarkingTimeSpan className="text-[#1967D2]" />
+                          </p>
+                          {technicianAssignment ? (
+                            <p className="text-[11px] sm:text-xs font-semibold text-slate-600 mt-0.5">
+                              Turno {SHIFT_LABELS[technicianAssignment.shift] || technicianAssignment.shift}:{" "}
+                              <span className="font-bold text-slate-800">
+                                Ingreso {technicianAssignment.expectedEntryTime}
                               </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                void requestMobileNotificationPermission()
-                                playRotationAlertSoundAndVibrate()
-                              }}
-                              className="px-3 py-1 rounded-lg bg-[#1967D2] hover:bg-[#124b9c] text-white font-black text-[11px] cursor-pointer shrink-0"
-                            >
-                              Activar avisos
-                            </button>
-                          </div>
-                        )}
-
-                        {/* AVISO DE FIN DE CLASE Y ROTACIÓN (EXCLUSIVO EN CELULARES, NUNCA EN ESTACIÓN FIJA PC) */}
-                        {!kioskConfig &&
-                          mobileRotationAlert.shouldAlert &&
-                          dismissedRotationAlertKey !== currentRotationAlertKey && (
-                            <div className="rounded-xl sm:rounded-2xl border-2 border-amber-400 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 p-3 sm:p-4 shadow-sm space-y-2 animate-fade-in-up">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 animate-bounce">
-                                    <BellRing size={17} />
-                                  </div>
-                                  <div className="min-w-0">
-                                    <h4 className="text-xs sm:text-sm font-black text-amber-950 leading-snug">
-                                      {mobileRotationAlert.title}
-                                    </h4>
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setDismissedRotationAlertKey(currentRotationAlertKey)}
-                                  className="text-amber-700 hover:text-amber-950 p-1 cursor-pointer shrink-0"
-                                  title="Ocultar aviso"
-                                >
-                                  <X size={15} />
-                                </button>
-                              </div>
-
-                              <p className="text-[11px] sm:text-xs font-semibold text-amber-900 leading-relaxed">
-                                {mobileRotationAlert.message}
-                              </p>
-
-                              {mobileRotationAlert.nextModule && (
-                                <div className="bg-white/95 rounded-xl p-2.5 sm:p-3 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                  <div className="space-y-0.5 min-w-0">
-                                    <p className="text-[10px] font-black uppercase tracking-wider text-amber-700 flex items-center gap-1">
-                                      <ArrowRight size={12} /> Siguiente Ambiente
-                                    </p>
-                                    <p className="text-xs sm:text-sm font-black text-slate-900">
-                                      {mobileRotationAlert.nextAmbiente}
-                                      {mobileRotationAlert.nextModule.piso
-                                        ? ` • ${mobileRotationAlert.nextModule.piso}`
-                                        : ""}
-                                    </p>
-                                    <p className="text-[11px] font-bold text-slate-600">
-                                      Horario: {mobileRotationAlert.nextHorario} •{" "}
-                                      {mobileRotationAlert.nextModule.courseName}
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                        {/* Barra rápida: Actualizar horario desde Excel en vivo + Probar aviso con app cerrada */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white/80 border border-slate-200/80 text-[11px] sm:text-xs">
-                          <div className="flex items-center gap-1.5 text-slate-600 font-semibold">
-                            <RefreshCw
-                              size={12}
-                              className={isRefreshingSchedule ? "animate-spin text-[#1967D2]" : "text-emerald-600"}
-                            />
-                            <span>
-                              {isRefreshingSchedule
-                                ? "Consultando cambios recientes en el Excel..."
-                                : "Sincronizado con el Excel del día"}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <button
-                              type="button"
-                              disabled={isRefreshingSchedule}
-                              onClick={() => validateDni(watchDni, 1, true)}
-                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors disabled:opacity-50"
-                              title="Volver a consultar el Excel en vivo para detectar modificaciones de último momento"
-                            >
-                              <RefreshCw size={11} className={isRefreshingSchedule ? "animate-spin" : ""} />
-                              Actualizar Excel
-                            </button>
-                            {!kioskConfig && (
-                              <button
-                                type="button"
-                                disabled={isTestingClosedAlert}
-                                onClick={handleTestClosedAppNotification}
-                                className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1967D2] border border-blue-200 font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors disabled:opacity-50"
-                                title="Envía una notificación en 5 segundos para comprobar que suena con la app cerrada o pantalla bloqueada"
-                              >
-                                <BellRing size={11} />
-                                {isTestingClosedAlert ? "Enviando en 5s..." : "Probar con app cerrada (5s)"}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Información necesaria: Hora que marca, Sede, Ambiente que le toca y Curso */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                          {/* Hora de marcación y Horario actual */}
-                          <div className="bg-white/90 rounded-lg sm:rounded-xl p-2.5 sm:p-3.5 border border-slate-200/70 flex items-start gap-2.5 sm:gap-3">
-                            <Clock size={16} className="text-[#1967D2] mt-0.5 shrink-0" />
-                            <div className="min-w-0">
-                              <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                Hora y Turno de Hoy
-                              </p>
-                              <p className="text-xs sm:text-sm font-black text-slate-800">
-                                Marcando: <LiveMarkingTimeSpan className="text-[#1967D2]" />
-                              </p>
-                              {effectiveActiveModule ? (
-                                <p className="text-[11px] sm:text-xs font-semibold text-slate-600 mt-0.5">
-                                  Horario:{" "}
-                                  <span className="font-black text-slate-900">
-                                    {effectiveActiveModule.horaInicio} a {effectiveActiveModule.horaFin}
-                                  </span>
-                                </p>
-                              ) : dailyProgram?.found ? (
-                                <p className="text-[11px] sm:text-xs font-semibold text-slate-600 mt-0.5">
-                                  Horario:{" "}
-                                  <span className="font-black text-slate-900">
-                                    {dailyProgram.entryTime} a {dailyProgram.exitTime}
-                                  </span>
-                                </p>
-                              ) : (
-                                <p className="text-[11px] sm:text-xs font-medium text-amber-700 mt-0.5">
-                                  Sin horario en lista de hoy
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Sede */}
-                          <div className="bg-white/90 rounded-lg sm:rounded-xl p-2.5 sm:p-3.5 border border-slate-200/70 flex items-start gap-2.5 sm:gap-3">
-                            <MapPin size={16} className="text-[#1967D2] mt-0.5 shrink-0" />
-                            <div className="min-w-0">
-                              <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                Sede Asignada
-                              </p>
-                              <p className="text-xs sm:text-sm font-black text-slate-800">
-                                {effectiveActiveModule?.campusName ||
-                                  (dailyProgram?.found ? dailyProgram.campusName : null) ||
-                                  validatedUser.campusName ||
-                                  "Campus Villa"}
-                              </p>
-                              {(effectiveActiveModule?.piso || (dailyProgram?.found && dailyProgram.piso)) && (
-                                <p className="text-[11px] sm:text-xs font-medium text-slate-500 mt-0.5 truncate">
-                                  {effectiveActiveModule?.piso || dailyProgram?.piso}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Ambiente que le toca en ese momento (solo nombre después de ':') */}
-                          <div className="bg-white/90 rounded-lg sm:rounded-xl p-2.5 sm:p-3.5 border border-slate-200/70 flex items-start gap-2.5 sm:gap-3">
-                            <DoorOpen size={16} className="text-emerald-600 mt-0.5 shrink-0" />
-                            <div className="min-w-0">
-                              <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                Ambiente Asignado
-                              </p>
-                              <p className="text-xs sm:text-sm font-black text-slate-800 break-words leading-snug">
-                                {effectiveActiveModule
-                                  ? effectiveActiveModule.ambiente.replace(/^[^:]+:\s*/, "")
-                                  : dailyProgram?.found
-                                    ? dailyProgram.ambiente.replace(/^[^:]+:\s*/, "")
-                                    : "Por asignar en sede"}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Curso / Sesión que le toca en ese momento */}
-                          <div className="bg-white/90 rounded-lg sm:rounded-xl p-2.5 sm:p-3.5 border border-slate-200/70 flex items-start gap-2.5 sm:gap-3">
-                            <BookOpen size={16} className="text-emerald-600 mt-0.5 shrink-0" />
-                            <div className="min-w-0">
-                              <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                Curso / Sesión de Ingreso
-                              </p>
-                              <p className="text-xs sm:text-sm font-black text-slate-800 break-words leading-snug">
-                                {effectiveActiveModule
-                                  ? effectiveActiveModule.courseName
-                                  : dailyProgram?.found
-                                    ? dailyProgram.courseName
-                                    : "General"}
-                              </p>
-                              {(effectiveActiveModule?.sesion || (dailyProgram?.found && dailyProgram.sesion)) && (
-                                <p
-                                  className="text-[11px] sm:text-xs font-medium text-slate-500 mt-0.5 truncate"
-                                  title={effectiveActiveModule?.sesion || dailyProgram?.sesion}
-                                >
-                                  {effectiveActiveModule?.sesion || dailyProgram?.sesion}
-                                </p>
-                              )}
-                            </div>
-                          </div>
+                            </p>
+                          ) : validatedUser.defaultShift ? (
+                            <p className="text-[11px] sm:text-xs font-semibold text-slate-600 mt-0.5">
+                              Turno:{" "}
+                              <span className="font-bold text-slate-800">
+                                {SHIFT_LABELS[validatedUser.defaultShift] || validatedUser.defaultShift}
+                              </span>
+                            </p>
+                          ) : null}
                         </div>
                       </div>
-                    )}
+
+                      <div className="bg-white/90 rounded-lg sm:rounded-xl p-2.5 sm:p-3.5 border border-slate-200/70 flex items-start gap-2.5 sm:gap-3">
+                        <MapPin size={16} className="text-[#1967D2] mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                            Sede Asignada
+                          </p>
+                          <p className="text-xs sm:text-sm font-black text-slate-800">
+                            {technicianAssignment?.campusName || validatedUser.campusName || "Sede Principal"}
+                          </p>
+                          <p className="text-[11px] sm:text-xs font-medium text-slate-500 mt-0.5">
+                            {technicianAssignment?.source === "SCHEDULE" ? "Según cronograma del día" : "Sede asignada"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 

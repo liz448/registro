@@ -122,7 +122,7 @@ export function computeOvertimeForRecords(
     const exitMinutes = limaMinutesOfDay(exitDate)
 
     const user = firstEntry.user || lastExit.user || {}
-    const role = user.role || "TECNICO"
+    const role = user.role || "ADMINISTRATIVO"
 
     // Resolver turno y horario esperado
     const schedKey = `${userId}_${dateStr}`
@@ -130,9 +130,9 @@ export function computeOvertimeForRecords(
 
     const userShift = (sched?.shift || user.defaultShift || Shift.MANANA) as Shift
     const def = DEFAULT_SHIFT_TIMES[userShift] || DEFAULT_SHIFT_TIMES.MANANA
-    const expectedEntry = sched?.expectedEntryTime || def.entry || "06:00"
+    const expectedEntry = sched?.expectedEntryTime || def.entry || "08:00"
 
-    const campusName = firstEntry.campus?.name || lastExit.campus?.name || sched?.campusName || user.campus?.name || "Campus Villa"
+    const campusName = firstEntry.campus?.name || lastExit.campus?.name || sched?.campusName || user.campus?.name || "Sede Principal"
 
     const scheduledExit = calculateExpectedExitTime(expectedEntry, settings.workdayHours)
     const [schedExitH, schedExitM] = scheduledExit.split(":").map(Number)

@@ -6,26 +6,24 @@ import { computeOvertimeForRecords, DEFAULT_OVERTIME_SETTINGS, type OvertimeSett
 
 const ROLE_LABELS: Record<string, string> = {
   DOCENTE: "Docentes",
-  TECNICO: "Técnicos",
-  PACIENTE_SIMULADO: "Pacientes Sim.",
+  ADMINISTRATIVO: "Administrativos",
   SUPER_ADMIN: "Super Admin",
-  ADMIN_SECUNDARIO: "Coordinadores",
+  ADMIN_SECUNDARIO: "Administrador",
 }
 
 const pct = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 1000) / 10 : 0)
 
 /**
  * Calcula todas las métricas del panel de analítica para un rango de días
- * (contados hacia atrás desde hoy, en hora de Lima) y opcionalmente una sede o rol operativo.
+ * (contados hacia atrás desde hoy, en hora de Lima) y opcionalmente una sede.
  */
 export async function computeAnalytics({
   days,
   campusId,
-  roleFilter,
 }: {
   days: number
   campusId?: string | null
-  roleFilter?: "PACIENTE_SIMULADO" | null
+  roleFilter?: null
 }): Promise<AnalyticsData> {
   const todayKey = limaDayKey(new Date())
   const fromKey = addDaysToKey(todayKey, -(days - 1))
@@ -35,10 +33,9 @@ export async function computeAnalytics({
 
   const campusFilter: Prisma.AttendanceRecordWhereInput = {
     ...(campusId ? { campusId } : {}),
-    ...(roleFilter ? { user: { role: roleFilter } } : {}),
   }
 
-  const [records, prevGroups, campuses, allStaffCounts, rawSettings, techSchedules] = await Promise.all([
+  const [records, prevGroups, campuses, allStaffCounts, rawSettings, schedules] = await Promise.all([
     prisma.attendanceRecord.findMany({
       where: { timestamp: { gte: from, lt: to }, ...campusFilter },
       select: {
@@ -61,7 +58,7 @@ export async function computeAnalytics({
     prisma.user.groupBy({
       by: ["role"],
       where: {
-        role: roleFilter ? roleFilter : { in: ["DOCENTE", "TECNICO", "PACIENTE_SIMULADO"] },
+        role: { in: ["DOCENTE", "ADMINISTRATIVO"] },
         ...(campusId ? { campusId } : {}),
       },
       _count: { _all: true },
@@ -76,14 +73,12 @@ export async function computeAnalytics({
   ])
 
   let staffDocentes = 0
-  let staffTecnicos = 0
-  let staffPacientes = 0
+  let staffAdministrativos = 0
   for (const s of allStaffCounts) {
     if (s.role === "DOCENTE") staffDocentes = s._count._all
-    else if (s.role === "TECNICO") staffTecnicos = s._count._all
-    else if (s.role === "PACIENTE_SIMULADO") staffPacientes = s._count._all
+    else if (s.role === "ADMINISTRATIVO") staffAdministrativos = s._count._all
   }
-  const staffTotal = staffDocentes + staffTecnicos + staffPacientes
+  const staffTotal = staffDocentes + staffAdministrativos
 
   // ---------- Serie diaria (inicializada con todos los días del rango) ----------
   const dailyMap = new Map<string, AnalyticsData["daily"][number]>()
@@ -202,7 +197,7 @@ export async function computeAnalytics({
   }
 
   const schedMap = new Map<string, { shift: string; expectedEntryTime: string; campusName?: string }>()
-  for (const s of (techSchedules as any[]) || []) {
+  for (const s of (schedules as any[]) || []) {
     const key = `${s.userId}_${s.date}`
     schedMap.set(key, {
       shift: s.shift,
@@ -244,7 +239,7 @@ export async function computeAnalytics({
       .sort((a, b) => b.total - a.total)
       .slice(0, 8),
     byHour,
-    byRole: ["DOCENTE", "TECNICO", "PACIENTE_SIMULADO"].map((role) => ({
+    byRole: ["DOCENTE", "ADMINISTRATIVO"].map((role) => ({
       role,
       label: ROLE_LABELS[role],
       total: roleMap.get(role) ?? 0,
@@ -256,8 +251,7 @@ export async function computeAnalytics({
     registeredStaff: {
       total: staffTotal,
       docentes: staffDocentes,
-      tecnicos: staffTecnicos,
-      pacientes: staffPacientes,
+      administrativos: staffAdministrativos,
     },
     overtime: {
       totalRawHours: overtimeResult.totalRawHours,

@@ -316,7 +316,7 @@ export async function checkAndDispatchDuePushNotifications(force = false): Promi
       }
 
       const moduleSubs = subs.filter(
-        (s) => s.role === Role.DOCENTE || s.role === Role.PACIENTE_SIMULADO
+        (s) => s.role === Role.DOCENTE || s.role === Role.ADMINISTRATIVO
       )
       if (moduleSubs.length === 0) {
         return { checked: 0, sent: 0 }
@@ -367,7 +367,7 @@ export async function checkAndDispatchDuePushNotifications(force = false): Promi
       const survivingSubs: StoredPushSubscriptionItem[] = []
 
       for (const sub of subs) {
-        if (sub.role !== Role.DOCENTE && sub.role !== Role.PACIENTE_SIMULADO) {
+        if (sub.role !== Role.DOCENTE && sub.role !== Role.ADMINISTRATIVO) {
           survivingSubs.push(sub)
           continue
         }

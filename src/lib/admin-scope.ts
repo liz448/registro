@@ -1,11 +1,10 @@
-// Utilidades para separar la Sede Operativa (campusId como Técnico/Docente/Paciente)
+// Utilidades para separar la Sede Operativa (campusId como Docente/Administrativo)
 // de la Sede de Visualización Administrativa (adminCampusId) y el Nivel de Administrador (AdminTier).
 
 export type AdminTier =
   | "SUPER_ADMIN"
   | "ADMIN_GLOBAL"
   | "ADMIN_SEDE"
-  | "COORDINADOR_PACIENTES"
 
 export const SCOPE_PREFIX = "scope:"
 export const SCOPE_ALL = "scope:ALL"
@@ -27,9 +26,6 @@ export function extractModulePermissions(rawPermissions: string[] | null | undef
  * Extrae el adminCampusId configurado para la vista administrativa.
  * - Si tiene `scope:ALL`, retorna `null` (ve todas las sedes).
  * - Si tiene `scope:campus:<id>`, retorna `<id>` (solo ve esa sede).
- * - Si no tiene token `scope:` (registros antiguos):
- *   - Si es `SUPER_ADMIN`, por defecto ve todas las sedes (`null`).
- *   - Si es `ADMIN_SECUNDARIO`, usa `fallbackCampusId` si existe, o `null`.
  */
 export function extractAdminCampusId(
   rawPermissions: string[] | null | undefined,
@@ -47,7 +43,6 @@ export function extractAdminCampusId(
     }
   }
 
-  // Por defecto un SUPER_ADMIN siempre ve todas las sedes (sin confundirse con su sede operativa de técnico)
   if (effectiveRole === "SUPER_ADMIN") {
     return null
   }
@@ -60,7 +55,6 @@ export function extractAdminCampusId(
  * - `SUPER_ADMIN`: Acceso total sin restricciones (incluye Informe de Logs y designar Super Admins)
  * - `ADMIN_GLOBAL`: Ve todas las sedes, sin poder crear Super Admins ni ver Informe de Logs
  * - `ADMIN_SEDE`: Ve únicamente la información de su sede administrativa asignada
- * - `COORDINADOR_PACIENTES`: Gestiona, monitorea y exporta exclusivamente Pacientes Simulados (en todas las sedes o en una sede asignada)
  */
 export function extractAdminTier(
   rawPermissions: string[] | null | undefined,
@@ -74,12 +68,7 @@ export function extractAdminTier(
     const tierToken = rawPermissions.find((p) => p.startsWith(TIER_PREFIX))
     if (tierToken) {
       const t = tierToken.slice(TIER_PREFIX.length) as AdminTier
-      if (
-        t === "SUPER_ADMIN" ||
-        t === "ADMIN_GLOBAL" ||
-        t === "ADMIN_SEDE" ||
-        t === "COORDINADOR_PACIENTES"
-      ) {
+      if (t === "SUPER_ADMIN" || t === "ADMIN_GLOBAL" || t === "ADMIN_SEDE") {
         return t
       }
     }
@@ -88,16 +77,7 @@ export function extractAdminTier(
   return adminCampusId ? "ADMIN_SEDE" : "ADMIN_GLOBAL"
 }
 
-/**
- * Si el administrador tiene un rol especializado en un grupo operativo (ej. Coordinador de Pacientes Simulados),
- * retorna el rol operativo al que está restringido (`"PACIENTE_SIMULADO"`), o `null` si supervisa todos los roles.
- */
-export function extractScopedOperationalRole(
-  tier: AdminTier
-): "PACIENTE_SIMULADO" | null {
-  if (tier === "COORDINADOR_PACIENTES") {
-    return "PACIENTE_SIMULADO"
-  }
+export function extractScopedOperationalRole(_tier?: AdminTier): null {
   return null
 }
 
@@ -121,4 +101,3 @@ export function buildStoredPermissions(params: {
 
   return [...cleanModules, scopeToken, tierToken]
 }
-

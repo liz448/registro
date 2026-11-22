@@ -621,7 +621,7 @@ export function matchDailyProgramFromSessions(
 
   if (userTokens.length > 0) {
     for (const s of allSessions) {
-      if (userRole === Role.PACIENTE_SIMULADO) {
+      if (userRole === Role.ADMINISTRATIVO) {
         if (matchesPreTokenizedField(userTokens, s, "pacientesEstandarizados")) {
           matchedSessions.push({ session: s, roleInSession: "PACIENTE_ESTANDARIZADO" })
         }
@@ -692,7 +692,7 @@ export function matchDailyProgramFromSessions(
   // se unifican en un solo bloque continuo para no interrumpirlo con alarmas intermedias mientras no cambie de tema/salón.
   // Si es DOCENTE, cada módulo se mantiene individual para que la alarma le avise cada vez que termina la hora con su sección de alumnos.
   const mappedSessions =
-    userRole === Role.PACIENTE_SIMULADO
+    userRole === Role.ADMINISTRATIVO
       ? mergeContinuousSessionsForPatient(rawMappedSessions)
       : rawMappedSessions
 
@@ -787,7 +787,7 @@ export function resolveUserModulesState(
   userRole?: Role
 ): UserModulesResolution {
   const effectiveSessions =
-    userRole === Role.PACIENTE_SIMULADO
+    userRole === Role.ADMINISTRATIVO
       ? mergeContinuousSessionsForPatient(sessions)
       : sessions
 

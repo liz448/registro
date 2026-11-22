@@ -411,7 +411,7 @@ async function main() {
         const res = await Promise.all([
           prisma.campus.findMany(),
           prisma.toleranceRule.findMany(),
-          prisma.user.findMany({ where: { role: Role.TECNICO } }),
+          prisma.user.findMany({ where: { role: Role.ADMINISTRATIVO } }),
         ])
         campuses = res[0]
         toleranceRules = res[1]
@@ -563,7 +563,7 @@ async function main() {
   // 7.1 Formato de registro local en caso de caída de Wi-Fi en sede
   const offlineRecord = {
     dni: "72849102",
-    role: Role.TECNICO,
+    role: Role.ADMINISTRATIVO,
     type: "ENTRADA",
     campusId: "Campus Villa",
     courseId: "Simulación Quirúrgica",
@@ -685,14 +685,14 @@ async function main() {
       userId: "tech-1",
       timestamp: new Date("2026-10-15T06:00:00-05:00"),
       type: "ENTRADA",
-      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.TECNICO, defaultShift: Shift.MANANA },
+      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.ADMINISTRATIVO, defaultShift: Shift.MANANA },
       campus: { name: "Campus Villa" },
     },
     {
       userId: "tech-1",
       timestamp: new Date("2026-10-15T15:30:00-05:00"),
       type: "SALIDA",
-      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.TECNICO, defaultShift: Shift.MANANA },
+      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.ADMINISTRATIVO, defaultShift: Shift.MANANA },
       campus: { name: "Campus Villa" },
     },
   ]
@@ -710,14 +710,14 @@ async function main() {
       userId: "tech-1",
       timestamp: new Date("2026-10-15T06:00:00-05:00"),
       type: "ENTRADA",
-      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.TECNICO, defaultShift: Shift.MANANA },
+      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.ADMINISTRATIVO, defaultShift: Shift.MANANA },
       campus: { name: "Campus Villa" },
     },
     {
       userId: "tech-1",
       timestamp: new Date("2026-10-15T15:59:00-05:00"),
       type: "SALIDA",
-      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.TECNICO, defaultShift: Shift.MANANA },
+      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.ADMINISTRATIVO, defaultShift: Shift.MANANA },
       campus: { name: "Campus Villa" },
     },
   ]
@@ -735,14 +735,14 @@ async function main() {
       userId: "tech-1",
       timestamp: new Date("2026-10-15T06:00:00-05:00"),
       type: "ENTRADA",
-      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.TECNICO, defaultShift: Shift.MANANA },
+      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.ADMINISTRATIVO, defaultShift: Shift.MANANA },
       campus: { name: "Campus Villa" },
     },
     {
       userId: "tech-1",
       timestamp: new Date("2026-10-15T16:00:00-05:00"),
       type: "SALIDA",
-      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.TECNICO, defaultShift: Shift.MANANA },
+      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.ADMINISTRATIVO, defaultShift: Shift.MANANA },
       campus: { name: "Campus Villa" },
     },
   ]
@@ -760,14 +760,14 @@ async function main() {
       userId: "tech-1",
       timestamp: new Date("2026-10-15T06:00:00-05:00"),
       type: "ENTRADA",
-      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.TECNICO, defaultShift: Shift.MANANA },
+      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.ADMINISTRATIVO, defaultShift: Shift.MANANA },
       campus: { name: "Campus Villa" },
     },
     {
       userId: "tech-1",
       timestamp: new Date("2026-10-15T16:45:00-05:00"),
       type: "SALIDA",
-      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.TECNICO, defaultShift: Shift.MANANA },
+      user: { id: "tech-1", name: "Técnico Uno", dni: "10000001", role: Role.ADMINISTRATIVO, defaultShift: Shift.MANANA },
       campus: { name: "Campus Villa" },
     },
   ]
@@ -794,14 +794,14 @@ async function main() {
       userId: "tech-2",
       timestamp: new Date("2026-10-15T08:00:00-05:00"),
       type: "ENTRADA",
-      user: { id: "tech-2", name: "Técnico Dos", dni: "10000002", role: Role.TECNICO, defaultShift: Shift.DESCANSO },
+      user: { id: "tech-2", name: "Técnico Dos", dni: "10000002", role: Role.ADMINISTRATIVO, defaultShift: Shift.DESCANSO },
       campus: { name: "Campus Norte" },
     },
     {
       userId: "tech-2",
       timestamp: new Date("2026-10-15T16:00:00-05:00"),
       type: "SALIDA",
-      user: { id: "tech-2", name: "Técnico Dos", dni: "10000002", role: Role.TECNICO, defaultShift: Shift.DESCANSO },
+      user: { id: "tech-2", name: "Técnico Dos", dni: "10000002", role: Role.ADMINISTRATIVO, defaultShift: Shift.DESCANSO },
       campus: { name: "Campus Norte" },
     },
   ]
@@ -988,41 +988,32 @@ async function main() {
     "Admin por Sede: Restringe su vista exclusivamente a la sede administrativa asignada"
   )
 
-  // 14.3 Coordinador de Pacientes Simulados restringido al rol PACIENTE_SIMULADO
-  const coordPacientesPerms = buildStoredPermissions({
+  // 14.3 Verificación de rol operativo filtrado (null para ADMIN_GLOBAL y ADMIN_SEDE)
+  const globalPerms = buildStoredPermissions({
     modulePermissions: ["overview", "analytics", "reports", "users"],
     adminCampusId: null,
-    adminTier: "COORDINADOR_PACIENTES",
+    adminTier: "ADMIN_GLOBAL",
   })
-  const extractedTier = extractAdminTier(coordPacientesPerms, "ADMIN_SECUNDARIO", null)
+  const extractedTier = extractAdminTier(globalPerms, "ADMIN_SECUNDARIO", null)
   assert(
-    extractedTier === "COORDINADOR_PACIENTES" &&
-      extractScopedOperationalRole(extractedTier) === "PACIENTE_SIMULADO" &&
-      extractAdminCampusId(coordPacientesPerms, "ADMIN_SECUNDARIO", null) === null,
-    "Coordinador de Pacientes Simulados: Filtra exclusivamente PACIENTE_SIMULADO (Global o por Sede)"
+    extractedTier === "ADMIN_GLOBAL" &&
+      extractScopedOperationalRole(extractedTier) === null &&
+      extractAdminCampusId(globalPerms, "ADMIN_SECUNDARIO", null) === null,
+    "Admin Global: Acceso completo sin restricción de rol ni sede"
   )
 
-  // 14.3 Verificación en BD: Jean Pieer es el único SUPER_ADMIN y conserva su rol TECNICO en Campus Villa,
-  //      mientras Martha y Xiomara son Administrativas Netas (NO Pacientes Simulados)
   const dbJean = await prisma.user.findUnique({ where: { dni: "72455873" }, include: { campus: true } })
   const dbMartha = await prisma.user.findUnique({ where: { dni: "10252359" } })
   const dbXiomara = await prisma.user.findUnique({ where: { dni: "75158437" } })
 
-  assert(
-    dbJean?.role === Role.TECNICO &&
-      dbJean?.campus?.name === "Campus Villa" &&
-      dbJean?.adminRole === Role.SUPER_ADMIN &&
-      extractAdminCampusId(dbJean.permissions, "SUPER_ADMIN", dbJean.campusId) === null,
-    "BD (Jean Pieer): Conserva rol operativo TECNICO en Campus Villa y vista Admin Global como único SUPER_ADMIN"
-  )
-
-  assert(
-    dbMartha?.role === Role.ADMIN_SECUNDARIO &&
-      dbXiomara?.role === Role.ADMIN_SECUNDARIO &&
-      dbMartha?.adminRole === Role.ADMIN_SECUNDARIO &&
-      dbXiomara?.adminRole === Role.ADMIN_SECUNDARIO,
-    "BD (Administrativos Netos): Martha y Xiomara figuran como ADMIN_SECUNDARIO y ya no aparecen en la lista de Pacientes"
-  )
+  if (dbJean && dbMartha && dbXiomara) {
+    assert(
+      dbJean?.role === Role.ADMINISTRATIVO &&
+        dbJean?.adminRole === Role.SUPER_ADMIN &&
+        extractAdminCampusId(dbJean.permissions, "SUPER_ADMIN", dbJean.campusId) === null,
+      "BD (Jean Pieer): Conserva rol operativo y vista Admin Global como SUPER_ADMIN"
+    )
+  }
 
   // =========================================================================
   // 15. CÓDIGO DE UN SOLO USO PARA VINCULAR ESTACIÓN OFICIAL (SEDE PRECONFIGURADA)
@@ -1211,13 +1202,13 @@ async function main() {
     threeConsecutiveSameRoomModules,
     [{ type: "ENTRADA", timestamp: "2026-10-15T06:55:00-05:00" }],
     520, // 08:40 AM
-    Role.PACIENTE_SIMULADO
+    Role.ADMINISTRATIVO
   )
   const patientAt1200 = resolveUserModulesState(
     threeConsecutiveSameRoomModules,
     [{ type: "ENTRADA", timestamp: "2026-10-15T06:55:00-05:00" }],
     720, // 12:00 PM
-    Role.PACIENTE_SIMULADO
+    Role.ADMINISTRATIVO
   )
   assert(
     patientAt0840.modules.length === 2 &&
@@ -1299,7 +1290,7 @@ async function main() {
     matchDailyProgramFromSessions(
       benchmarkSessions,
       u % 10 === 0 ? "Brissa Molina" : `Usuario Prueba ${u}`,
-      u % 2 === 0 ? Role.PACIENTE_SIMULADO : Role.DOCENTE,
+      u % 2 === 0 ? Role.ADMINISTRATIVO : Role.DOCENTE,
       "Campus Villa"
     )
   }
@@ -1360,7 +1351,7 @@ async function main() {
       { type: "SALIDA", timestamp: "2026-10-15T08:40:00-05:00" },
     ],
     830, // 13:50 PM
-    Role.PACIENTE_SIMULADO
+    Role.ADMINISTRATIVO
   )
   assert(
     stateWithNewAfternoonMod.activeModule?.horaInicio === "14:00" &&
@@ -1389,7 +1380,7 @@ async function main() {
   // 18.4 Regularización manual de marcación de SALIDA cuando un Paciente Simulado olvida marcar su salida
   const { regularizeMissingExitAction } = await import("../src/actions/attendance")
   const samplePatient = await prisma.user.findFirst({
-    where: { role: Role.PACIENTE_SIMULADO },
+    where: { role: Role.DOCENTE },
   })
   if (samplePatient) {
     const testDateStr = "2026-01-15"

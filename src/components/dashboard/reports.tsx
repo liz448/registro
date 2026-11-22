@@ -71,10 +71,9 @@ export type StaffConsolidated = {
 
 const ROLE_LABELS: Record<string, string> = {
   DOCENTE: "Docente",
-  TECNICO: "Técnico",
-  PACIENTE_SIMULADO: "Paciente Sim.",
+  ADMINISTRATIVO: "Administrativo",
   SUPER_ADMIN: "Super Admin",
-  ADMIN_SECUNDARIO: "Coordinador",
+  ADMIN_SECUNDARIO: "Administrador",
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string; badge: string }> = {
@@ -85,10 +84,10 @@ const STATUS_LABELS: Record<string, { label: string; color: string; badge: strin
 }
 
 const SHIFT_LABELS: Record<Shift, { label: string; icon: any; color: string }> = {
-  MANANA: { label: "Mañana (06:00 / 08:00)", icon: Sun, color: "text-amber-600 bg-amber-50 border-amber-200" },
-  INTERMEDIO: { label: "Intermedio (09:00 / 11:00)", icon: Coffee, color: "text-blue-600 bg-blue-50 border-blue-200" },
-  TARDE: { label: "Tarde (13:00 / 14:00)", icon: Sunset, color: "text-orange-600 bg-orange-50 border-orange-200" },
-  NOCHE: { label: "Noche (19:00 / 21:00)", icon: Moon, color: "text-indigo-600 bg-indigo-50 border-indigo-200" },
+  MANANA: { label: "Turno Mañana", icon: Sun, color: "text-amber-600 bg-amber-50 border-amber-200" },
+  INTERMEDIO: { label: "Turno Intermedio", icon: Coffee, color: "text-blue-600 bg-blue-50 border-blue-200" },
+  TARDE: { label: "Turno Tarde", icon: Sunset, color: "text-orange-600 bg-orange-50 border-orange-200" },
+  NOCHE: { label: "Turno Noche", icon: Moon, color: "text-indigo-600 bg-indigo-50 border-indigo-200" },
   DESCANSO: { label: "Descanso / Libre", icon: Coffee, color: "text-slate-500 bg-slate-50 border-slate-200" },
   COMISION: { label: "EV (Evento / Comisión)", icon: Sparkles, color: "text-violet-600 bg-violet-50 border-violet-200" },
 }
@@ -102,7 +101,7 @@ export function DashboardReports({
   initialRecords: any[]
   campuses: { id: string; name: string }[]
   initialOvertimeSettings?: OvertimeSettings
-  lockedOperationalRole?: "PACIENTE_SIMULADO" | null
+  lockedOperationalRole?: Role | null
 }) {
   const [records, setRecords] = useState<AttendanceItem[]>(initialRecords)
   const [isPending, startTransition] = useTransition()
@@ -976,22 +975,15 @@ export function DashboardReports({
             <label className="text-[11px] font-black uppercase tracking-wider text-slate-600 mb-1 flex items-center gap-1.5">
               <Users size={13} className="text-[#1967D2]" /> Rol Operativo
             </label>
-            {lockedOperationalRole === "PACIENTE_SIMULADO" ? (
-              <div className="w-full h-11 rounded-xl border border-purple-200 bg-purple-50 px-3 flex items-center text-xs font-bold text-purple-800">
-                👩‍⚕️ Solo Pacientes Simulados
-              </div>
-            ) : (
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as any)}
-                className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1967D2]"
-              >
-                <option value="ALL">Todos los roles</option>
-                <option value="DOCENTE">Docentes</option>
-                <option value="TECNICO">Técnicos</option>
-                <option value="PACIENTE_SIMULADO">Pacientes Simulados</option>
-              </select>
-            )}
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as any)}
+              className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1967D2]"
+            >
+              <option value="ALL">Todos los roles</option>
+              <option value="DOCENTE">Docentes</option>
+              <option value="ADMINISTRATIVO">Administrativos</option>
+            </select>
           </div>
 
           {/* Turno Base */}
@@ -1005,10 +997,10 @@ export function DashboardReports({
               className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1967D2]"
             >
               <option value="ALL">Todos los turnos</option>
-              <option value="MANANA">Mañana (06:00 / 08:00)</option>
-              <option value="INTERMEDIO">Intermedio (09:00 / 11:00)</option>
-              <option value="TARDE">Tarde (13:00 / 14:00)</option>
-              <option value="NOCHE">Noche (19:00 / 21:00)</option>
+              <option value="MANANA">Turno Mañana</option>
+              <option value="INTERMEDIO">Turno Intermedio</option>
+              <option value="TARDE">Turno Tarde</option>
+              <option value="NOCHE">Turno Noche</option>
               <option value="DESCANSO">Descanso / Libre</option>
               <option value="COMISION">EV (Evento / Comisión)</option>
             </select>

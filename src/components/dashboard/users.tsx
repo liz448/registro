@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Edit, Trash2, Users, AlertTriangle, Loader2, UserPlus, UserCircle, FileSpreadsheet, Shield, CalendarClock, Smartphone } from "lucide-react"
+import { Search, Edit, Trash2, Users, AlertTriangle, Loader2, UserPlus, UserCircle, FileSpreadsheet, Shield, Smartphone } from "lucide-react"
 import { toast } from "sonner"
 import { editUserAction, deleteUserAction, createUserAction, createAdminAction } from "@/actions/users"
 import { getDeviceBindingsOverviewAction, adminResetUserDeviceBindingAction } from "@/actions/attendance"
@@ -35,16 +35,19 @@ function Modal({ isOpen, onClose, title, children }: { isOpen: boolean, onClose:
   )
 }
 
+const ROLE_DISPLAY: Record<string, string> = {
+  DOCENTE: "Docente",
+  ADMINISTRATIVO: "Administrativo",
+}
+
 export function DashboardUsers({
   users,
   campuses = [],
   currentUserRole = "SUPER_ADMIN",
-  lockedOperationalRole = null,
 }: {
   users: any[]
   campuses?: { id: string; name: string }[]
   currentUserRole?: "SUPER_ADMIN" | "ADMIN_SECUNDARIO"
-  lockedOperationalRole?: "PACIENTE_SIMULADO" | null
 }) {
   const [searchTerm, setSearchTerm] = useState("")
 
@@ -89,16 +92,11 @@ export function DashboardUsers({
     }
   }
 
-  const [activeTab, setActiveTab] = useState<"TODOS" | "DOCENTE" | "TECNICO" | "PACIENTE_SIMULADO">(
-    lockedOperationalRole === "PACIENTE_SIMULADO" ? "PACIENTE_SIMULADO" : "TODOS"
-  )
+  const [activeTab, setActiveTab] = useState<"TODOS" | "DOCENTE" | "ADMINISTRATIVO">("TODOS")
 
   const filteredUsers = users.filter(u => {
     const matchesSearch = u.dni.includes(searchTerm) || u.name.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesTab =
-      lockedOperationalRole === "PACIENTE_SIMULADO"
-        ? u.role === "PACIENTE_SIMULADO"
-        : activeTab === "TODOS" || u.role === activeTab
+    const matchesTab = activeTab === "TODOS" || u.role === activeTab
     return matchesSearch && matchesTab
   })
 
@@ -158,10 +156,7 @@ export function DashboardUsers({
         role: (tier === "SUPER_ADMIN" ? Role.SUPER_ADMIN : Role.ADMIN_SECUNDARIO) as Role,
         adminTier: tier,
         password: promotingUser.password,
-        campusId:
-          tier === "ADMIN_SEDE" || tier === "COORDINADOR_PACIENTES"
-            ? promotingUser.adminCampusId || null
-            : null,
+        campusId: tier === "ADMIN_SEDE" ? promotingUser.adminCampusId || null : null,
       })
 
       if (res.success) {
@@ -206,15 +201,10 @@ export function DashboardUsers({
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <CardTitle className="text-xl font-extrabold text-slate-800 flex items-center gap-2">
-                  <Users size={22} className="text-[#1967D2]" />{" "}
-                  {lockedOperationalRole === "PACIENTE_SIMULADO"
-                    ? "Directorio de Pacientes Simulados"
-                    : "Personal Operativo"}
+                  <Users size={22} className="text-[#1967D2]" /> Personal Operativo
                 </CardTitle>
                 <CardDescription className="text-sm font-medium mt-1">
-                  {lockedOperationalRole === "PACIENTE_SIMULADO"
-                    ? "Registra, edita o da de baja a los pacientes simulados bajo tu coordinación."
-                    : "Busca, edita o da de baja docentes, técnicos o pacientes simulados."}
+                  Busca, registra, edita o da de baja a docentes y personal administrativo (secretarías, oficinas, etc.).
                 </CardDescription>
               </div>
               <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
@@ -227,43 +217,30 @@ export function DashboardUsers({
                     onChange={e => setSearchTerm(e.target.value)}
                   />
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => document.getElementById("trigger-daily-program")?.click()}
-                  className="h-12 border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-[#1967D2] rounded-xl font-bold px-5 cursor-pointer"
-                >
-                  <CalendarClock className="mr-2" size={19} />
-                  Horarios del Día (Excel)
-                </Button>
                 <Button onClick={() => setAddingMethod(true)} className="h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold px-6 shadow-md shadow-emerald-600/20">
-                  <UserPlus className="mr-2" size={20} />{" "}
-                  {lockedOperationalRole === "PACIENTE_SIMULADO" ? "Añadir Paciente" : "Añadir Usuario"}
+                  <UserPlus className="mr-2" size={20} /> Añadir Usuario
                 </Button>
               </div>
             </div>
 
-            {lockedOperationalRole !== "PACIENTE_SIMULADO" && (
-              <div className="flex flex-wrap gap-2 pt-2">
-                {[
-                  { id: "TODOS", label: "Todos" },
-                  { id: "DOCENTE", label: "Docentes" },
-                  { id: "TECNICO", label: "Técnicos" },
-                  { id: "PACIENTE_SIMULADO", label: "Pacientes Simulados" }
-                ].map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={`px-5 py-2 rounded-full text-xs font-bold transition-all ${activeTab === tab.id
-                        ? 'bg-[#1967D2] text-white shadow-md shadow-blue-500/20 scale-105'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="flex flex-wrap gap-2 pt-2">
+              {[
+                { id: "TODOS", label: "Todos" },
+                { id: "DOCENTE", label: "Docentes" },
+                { id: "ADMINISTRATIVO", label: "Administrativos" },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`px-5 py-2 rounded-full text-xs font-bold transition-all ${activeTab === tab.id
+                      ? 'bg-[#1967D2] text-white shadow-md shadow-blue-500/20 scale-105'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="max-h-[600px] overflow-y-auto">
@@ -292,12 +269,16 @@ export function DashboardUsers({
                         <TableCell className="font-semibold text-slate-500">{user.dni}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1 items-center">
-                            <span className="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-black tracking-widest text-slate-600 uppercase">
-                              {user.role}
+                            <span className={`px-3 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase ${
+                              user.role === "ADMINISTRATIVO"
+                                ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                : "bg-blue-50 text-blue-700 border border-blue-200"
+                            }`}>
+                              {ROLE_DISPLAY[user.role] || user.role}
                             </span>
                             {(user.adminRole || user.role === "SUPER_ADMIN" || user.role === "ADMIN_SECUNDARIO") && (
                               <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md text-[9px] font-bold tracking-wider uppercase flex items-center gap-1">
-                                <Shield size={10} /> Admin
+                                <Shield size={10} /> Admin Panel
                               </span>
                             )}
                           </div>
@@ -364,24 +345,22 @@ export function DashboardUsers({
                               <Smartphone size={15} />
                             )}
                           </Button>
-                          {lockedOperationalRole !== "PACIENTE_SIMULADO" && (
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              title="Habilitar Acceso Administrativo (Dashboard)"
-                              onClick={() =>
-                                setPromotingUser({
-                                  ...user,
-                                  adminTier: "ADMIN_GLOBAL",
-                                  adminCampusId: user.campusId || "",
-                                  password: "",
-                                })
-                              }
-                              className="h-9 w-9 text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800 rounded-xl transition-colors shadow-sm"
-                            >
-                              <Shield size={16} />
-                            </Button>
-                          )}
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            title="Habilitar Acceso Administrativo (Dashboard)"
+                            onClick={() =>
+                              setPromotingUser({
+                                ...user,
+                                adminTier: "ADMIN_GLOBAL",
+                                adminCampusId: user.campusId || "",
+                                password: "",
+                              })
+                            }
+                            className="h-9 w-9 text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800 rounded-xl transition-colors shadow-sm"
+                          >
+                            <Shield size={16} />
+                          </Button>
                           <Button variant="outline" size="icon" onClick={() => setEditingUser({ ...user, oldDni: user.dni, campusId: user.campusId || "", defaultShift: user.defaultShift || "" })} className="h-9 w-9 text-blue-600 border-blue-200 hover:bg-blue-100 hover:text-blue-800 rounded-xl transition-colors shadow-sm">
                             <Edit size={16} />
                           </Button>
@@ -403,7 +382,7 @@ export function DashboardUsers({
       <Modal isOpen={addingMethod} onClose={() => setAddingMethod(false)} title="Registrar Usuarios">
         <p className="text-slate-500 font-medium text-center mb-6">Selecciona cómo deseas ingresar a los nuevos usuarios al sistema.</p>
         <div className="grid grid-cols-2 gap-4 mb-8">
-          <button onClick={() => { setAddingMethod(false); setAddingUser({ name: '', dni: '', role: lockedOperationalRole || 'DOCENTE' }) }} className="flex flex-col items-center justify-center p-6 border-2 border-slate-200 rounded-2xl hover:border-[#1967D2] hover:bg-blue-50 transition-all group bg-white">
+          <button onClick={() => { setAddingMethod(false); setAddingUser({ name: '', dni: '', role: 'DOCENTE', defaultShift: '' }) }} className="flex flex-col items-center justify-center p-6 border-2 border-slate-200 rounded-2xl hover:border-[#1967D2] hover:bg-blue-50 transition-all group bg-white">
             <UserCircle className="text-slate-400 group-hover:text-[#1967D2] mb-3 transition-colors" size={48} />
             <span className="font-extrabold text-slate-700 group-hover:text-[#1967D2]">Individual</span>
             <span className="text-xs text-slate-400 mt-1">Uno por uno</span>
@@ -423,28 +402,21 @@ export function DashboardUsers({
         </div>
 
         <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100">
-          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4">Descargar Plantillas Excel Oficiales</p>
+          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4">Descargar Plantillas Excel</p>
           <div className="flex flex-col gap-3">
-            {lockedOperationalRole !== "PACIENTE_SIMULADO" && (
-              <>
-                <a href="/templates/plantilla_docentes.xlsx" download className="text-sm font-bold text-[#1967D2] hover:text-blue-800 hover:bg-blue-100/50 p-2 rounded-lg transition-colors flex items-center gap-3">
-                  <FileSpreadsheet size={18} /> Plantilla para Docentes
-                </a>
-                <a href="/templates/plantilla_tecnicos.xlsx" download className="text-sm font-bold text-emerald-600 hover:text-emerald-800 hover:bg-emerald-100/50 p-2 rounded-lg transition-colors flex items-center gap-3">
-                  <FileSpreadsheet size={18} /> Plantilla para Técnicos
-                </a>
-              </>
-            )}
-            <a href="/templates/plantilla_pacientes.xlsx" download className="text-sm font-bold text-purple-600 hover:text-purple-800 hover:bg-purple-100/50 p-2 rounded-lg transition-colors flex items-center gap-3">
-              <FileSpreadsheet size={18} /> Plantilla para Pacientes Simulados
+            <a href="/templates/plantilla_docentes.xlsx" download className="text-sm font-bold text-[#1967D2] hover:text-blue-800 hover:bg-blue-100/50 p-2 rounded-lg transition-colors flex items-center gap-3">
+              <FileSpreadsheet size={18} /> Plantilla para Docentes
+            </a>
+            <a href="/templates/plantilla_tecnicos.xlsx" download="plantilla_administrativos.xlsx" className="text-sm font-bold text-purple-600 hover:text-purple-800 hover:bg-purple-100/50 p-2 rounded-lg transition-colors flex items-center gap-3">
+              <FileSpreadsheet size={18} /> Plantilla para Administrativos
             </a>
           </div>
         </div>
       </Modal>
 
       {/* MODAL CREAR INDIVIDUAL */}
-      <Modal isOpen={!!addingUser} onClose={() => !isProcessing && setAddingUser(null)} title={lockedOperationalRole === "PACIENTE_SIMULADO" ? "Nuevo Paciente Simulado" : "Nuevo Usuario"}>
-        <form onSubmit={handleCreate} className="space-y-6">
+      <Modal isOpen={!!addingUser} onClose={() => !isProcessing && setAddingUser(null)} title="Nuevo Usuario">
+        <form onSubmit={handleCreate} className="space-y-5">
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Nombre Completo</label>
             <Input
@@ -466,21 +438,14 @@ export function DashboardUsers({
           </div>
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Rol de Sistema</label>
-            {lockedOperationalRole === "PACIENTE_SIMULADO" ? (
-              <div className="w-full h-14 rounded-xl bg-purple-50 border border-purple-200 px-4 flex items-center text-sm font-bold text-purple-800">
-                👩‍⚕️ Paciente Simulado
-              </div>
-            ) : (
-              <select
-                value={addingUser?.role || ""}
-                onChange={e => setAddingUser({ ...addingUser, role: e.target.value })}
-                className="w-full h-14 rounded-xl bg-slate-50 border border-slate-200 px-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1967D2] transition-all"
-              >
-                <option value="DOCENTE">Docente</option>
-                <option value="TECNICO">Técnico</option>
-                <option value="PACIENTE_SIMULADO">Paciente Simulado</option>
-              </select>
-            )}
+            <select
+              value={addingUser?.role || "DOCENTE"}
+              onChange={e => setAddingUser({ ...addingUser, role: e.target.value })}
+              className="w-full h-14 rounded-xl bg-slate-50 border border-slate-200 px-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1967D2] transition-all"
+            >
+              <option value="DOCENTE">Docente</option>
+              <option value="ADMINISTRATIVO">Administrativo (Secretaría / Gestión / Soporte)</option>
+            </select>
           </div>
 
           <div>
@@ -497,23 +462,22 @@ export function DashboardUsers({
             </select>
           </div>
 
-          {addingUser?.role === "TECNICO" && (
-            <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Turno Predeterminado (Técnicos)</label>
-              <select
-                value={addingUser?.defaultShift || "MANANA"}
-                onChange={e => setAddingUser({ ...addingUser, defaultShift: e.target.value })}
-                className="w-full h-14 rounded-xl bg-slate-50 border border-slate-200 px-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1967D2] transition-all"
-              >
-                <option value="MANANA">Mañana (6:00 AM — 3:00 PM)</option>
-                <option value="INTERMEDIO">Intermedio (9:00 AM — 6:00 PM / Sáb 8 AM / Dom 10 AM)</option>
-                <option value="TARDE">Tarde (1:00 PM — 10:00 PM)</option>
-                <option value="COMISION">✈️ EV (Comisión / Evento Especial en Provincia)</option>
-              </select>
-            </div>
-          )}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Turno Asignado</label>
+            <select
+              value={addingUser?.defaultShift || ""}
+              onChange={e => setAddingUser({ ...addingUser, defaultShift: e.target.value })}
+              className="w-full h-14 rounded-xl bg-slate-50 border border-slate-200 px-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1967D2] transition-all"
+            >
+              <option value="">(Sin turno específico / Según regla general)</option>
+              <option value="MANANA">🌅 Turno Mañana</option>
+              <option value="INTERMEDIO">⛅ Turno Intermedio</option>
+              <option value="TARDE">🌆 Turno Tarde</option>
+              <option value="COMISION">✈️ EV (Comisión / Evento Especial)</option>
+            </select>
+          </div>
 
-          <div className="flex gap-4 pt-6 border-t border-slate-100">
+          <div className="flex gap-4 pt-4 border-t border-slate-100">
             <Button type="button" variant="outline" className="flex-1 h-14 rounded-xl font-bold border-slate-200 hover:bg-slate-50 text-slate-600" onClick={() => setAddingUser(null)} disabled={isProcessing}>Cancelar</Button>
             <Button type="submit" className="flex-1 h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md shadow-emerald-600/20" disabled={isProcessing}>
               {isProcessing ? <Loader2 className="animate-spin" /> : "Registrar Usuario"}
@@ -542,7 +506,7 @@ export function DashboardUsers({
 
       {/* MODAL EDITAR */}
       <Modal isOpen={!!editingUser} onClose={() => !isProcessing && setEditingUser(null)} title="Editar Información">
-        <form onSubmit={handleEdit} className="space-y-6">
+        <form onSubmit={handleEdit} className="space-y-5">
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Nombre Completo</label>
             <Input
@@ -564,21 +528,14 @@ export function DashboardUsers({
           </div>
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Nivel de Acceso (Rol)</label>
-            {lockedOperationalRole === "PACIENTE_SIMULADO" ? (
-              <div className="w-full h-14 rounded-xl bg-purple-50 border border-purple-200 px-4 flex items-center text-sm font-bold text-purple-800">
-                👩‍⚕️ Paciente Simulado
-              </div>
-            ) : (
-              <select
-                value={editingUser?.role || ""}
-                onChange={e => setEditingUser({ ...editingUser, role: e.target.value })}
-                className="w-full h-14 rounded-xl bg-slate-50 border border-slate-200 px-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1967D2] transition-all"
-              >
-                <option value="DOCENTE">Docente</option>
-                <option value="TECNICO">Técnico</option>
-                <option value="PACIENTE_SIMULADO">Paciente Simulado</option>
-              </select>
-            )}
+            <select
+              value={editingUser?.role || "DOCENTE"}
+              onChange={e => setEditingUser({ ...editingUser, role: e.target.value })}
+              className="w-full h-14 rounded-xl bg-slate-50 border border-slate-200 px-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1967D2] transition-all"
+            >
+              <option value="DOCENTE">Docente</option>
+              <option value="ADMINISTRATIVO">Administrativo (Secretaría / Gestión / Soporte)</option>
+            </select>
           </div>
 
           <div>
@@ -595,23 +552,22 @@ export function DashboardUsers({
             </select>
           </div>
 
-          {editingUser?.role === "TECNICO" && (
-            <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Turno Predeterminado</label>
-              <select
-                value={editingUser?.defaultShift || "MANANA"}
-                onChange={e => setEditingUser({ ...editingUser, defaultShift: e.target.value })}
-                className="w-full h-14 rounded-xl bg-slate-50 border border-slate-200 px-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1967D2] transition-all"
-              >
-                <option value="MANANA">Mañana (6:00 AM — 3:00 PM)</option>
-                <option value="INTERMEDIO">Intermedio (9:00 AM — 6:00 PM / Sáb 8 AM / Dom 10 AM)</option>
-                <option value="TARDE">Tarde (1:00 PM — 10:00 PM)</option>
-                <option value="COMISION">✈️ EV (Comisión / Evento Especial en Provincia)</option>
-              </select>
-            </div>
-          )}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Turno Asignado</label>
+            <select
+              value={editingUser?.defaultShift || ""}
+              onChange={e => setEditingUser({ ...editingUser, defaultShift: e.target.value })}
+              className="w-full h-14 rounded-xl bg-slate-50 border border-slate-200 px-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1967D2] transition-all"
+            >
+              <option value="">(Sin turno específico / Según regla general)</option>
+              <option value="MANANA">🌅 Turno Mañana</option>
+              <option value="INTERMEDIO">⛅ Turno Intermedio</option>
+              <option value="TARDE">🌆 Turno Tarde</option>
+              <option value="COMISION">✈️ EV (Comisión / Evento Especial)</option>
+            </select>
+          </div>
 
-          <div className="flex gap-4 pt-6 border-t border-slate-100">
+          <div className="flex gap-4 pt-4 border-t border-slate-100">
             <Button type="button" variant="outline" className="flex-1 h-14 rounded-xl font-bold border-slate-200 hover:bg-slate-50 text-slate-600" onClick={() => setEditingUser(null)} disabled={isProcessing}>Cancelar</Button>
             <Button type="submit" className="flex-1 h-14 bg-[#1967D2] hover:bg-blue-800 text-white rounded-xl font-bold shadow-md shadow-blue-600/20" disabled={isProcessing}>
               {isProcessing ? <Loader2 className="animate-spin" /> : "Guardar Cambios"}
@@ -628,7 +584,7 @@ export function DashboardUsers({
             <div>
               <p className="font-bold text-sm">Sede Operativa Independiente de Vista Admin</p>
               <p className="mt-1 leading-relaxed text-indigo-700">
-                <strong>{promotingUser?.name}</strong> (DNI: {promotingUser?.dni}) conservará intacto su rol operativo de <strong>{promotingUser?.role}</strong> y su sede base (<strong>{promotingUser?.campus?.name || "Sin sede fija"}</strong>). Abajo puedes elegir qué sede(s) verá cuando ingrese como Administrador.
+                <strong>{promotingUser?.name}</strong> (DNI: {promotingUser?.dni}) conservará intacto su rol operativo de <strong>{ROLE_DISPLAY[promotingUser?.role] || promotingUser?.role}</strong> y su sede base (<strong>{promotingUser?.campus?.name || "Sin sede fija"}</strong>). Abajo puedes elegir qué sede(s) verá cuando ingrese al panel como Administrador.
               </p>
             </div>
           </div>
@@ -642,14 +598,13 @@ export function DashboardUsers({
             >
               <option value="ADMIN_GLOBAL">Admin General (Ve todas las sedes — sin acceso a Logs ni crear Super Admin)</option>
               <option value="ADMIN_SEDE">Admin por Sede (Ve únicamente la información de 1 sede asignada)</option>
-              <option value="COORDINADOR_PACIENTES">Coordinador de Pacientes Simulados (Gestiona y exporta exclusivamente Pacientes Simulados)</option>
               {currentUserRole === "SUPER_ADMIN" && (
                 <option value="SUPER_ADMIN">Super Admin (Acceso Total sin restricciones + Informe de Logs)</option>
               )}
             </select>
           </div>
 
-          {(promotingUser?.adminTier === "ADMIN_SEDE" || promotingUser?.adminTier === "COORDINADOR_PACIENTES") && (
+          {promotingUser?.adminTier === "ADMIN_SEDE" && (
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">
                 Sede que Visualizará como Admin (Independiente de su sede operativa)
@@ -658,13 +613,9 @@ export function DashboardUsers({
                 value={promotingUser?.adminCampusId || ""}
                 onChange={e => setPromotingUser({ ...promotingUser, adminCampusId: e.target.value })}
                 className="w-full h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-600 transition-all"
-                required={promotingUser?.adminTier === "ADMIN_SEDE"}
+                required
               >
-                {promotingUser?.adminTier === "COORDINADOR_PACIENTES" ? (
-                  <option value="">Todas las sedes (Pacientes Simulados Global)</option>
-                ) : (
-                  <option value="">Seleccione sede a supervisar...</option>
-                )}
+                <option value="">Seleccione sede a supervisar...</option>
                 {campuses.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -695,7 +646,6 @@ export function DashboardUsers({
           </div>
         </form>
       </Modal>
-
     </>
   )
 }

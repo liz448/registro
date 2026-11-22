@@ -3,7 +3,6 @@
 import { useState, useTransition, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { Role, Shift } from "@prisma/client"
-import { TECHNICIAN_SHIFT_PRESETS, type ShiftPreset } from "@/lib/schedule-constants"
 import { toast } from "sonner"
 import {
   Clock, Plus, Settings2, Trash2, Edit3, ShieldAlert, CheckCircle2,
@@ -163,8 +162,7 @@ export type TechnicianUser = {
 
 const ROLE_LABELS: Record<string, string> = {
   DOCENTE: "Docentes",
-  TECNICO: "Técnicos",
-  PACIENTE_SIMULADO: "Pacientes Simulados",
+  ADMINISTRATIVO: "Administrativos",
 }
 
 const SHIFT_CONFIG: Record<
@@ -187,7 +185,7 @@ const SHIFT_CONFIG: Record<
     bgBadge: "bg-amber-50",
     borderBadge: "border-amber-200",
     textBadge: "text-amber-700",
-    desc: "Horario estándar ~06:00 AM",
+    desc: "Hora de ingreso manual configurable",
   },
   INTERMEDIO: {
     label: "Turno Intermedio",
@@ -196,7 +194,7 @@ const SHIFT_CONFIG: Record<
     bgBadge: "bg-cyan-50",
     borderBadge: "border-cyan-200",
     textBadge: "text-cyan-700",
-    desc: "Horario estándar ~08:00 - 10:00 AM",
+    desc: "Hora de ingreso manual configurable",
   },
   TARDE: {
     label: "Turno Tarde",
@@ -205,16 +203,16 @@ const SHIFT_CONFIG: Record<
     bgBadge: "bg-purple-50",
     borderBadge: "border-purple-200",
     textBadge: "text-purple-700",
-    desc: "Horario estándar ~01:00 PM (13:00)",
+    desc: "Hora de ingreso manual configurable",
   },
   NOCHE: {
-    label: "Turno Noche / Guardia",
+    label: "Turno Noche",
     icon: Moon,
     color: "from-indigo-600 to-slate-900",
     bgBadge: "bg-indigo-50",
     borderBadge: "border-indigo-200",
     textBadge: "text-indigo-700",
-    desc: "Horario estándar ~09:00 PM (21:00)",
+    desc: "Hora de ingreso manual configurable",
   },
 }
 
@@ -256,8 +254,8 @@ export function DashboardRules({
     shift: Shift.MANANA,
     daysOfWeek: "1,2,3,4,5,6,0",
     campusId: "",
-    role: Role.TECNICO,
-    expectedEntryTime: "06:00",
+    role: null,
+    expectedEntryTime: "08:00",
     earlyEntryToleranceMinutes: 15,
     gracePeriodMinutes: 10,
     lateToleranceMinutes: 30,
@@ -322,51 +320,38 @@ export function DashboardRules({
     })
   }
 
-  // Determinar a qué técnicos afecta una regla dada
+  // Determinar a qué colaboradores afecta una regla dada
   const getAffectedTechnicians = (rule: ToleranceRuleItem): TechnicianUser[] => {
-    // Si la regla tiene un rol que NO es TECNICO (ej: DOCENTE), no afecta técnicos
-    if (rule.role && rule.role !== Role.TECNICO) return []
-
-    return technicians.filter((tech) => {
-      // 1. Filtrar por sede si la regla es específica de sede
-      if (rule.campusId && tech.campusId !== rule.campusId) {
+    return technicians.filter((staff) => {
+      if (rule.role && (staff as any).role && (staff as any).role !== rule.role) {
         return false
       }
-
-      // 2. Si la regla tiene turno asignado, debe coincidir con el defaultShift del técnico
-      if (rule.shift) {
-        return tech.defaultShift === rule.shift
+      if (rule.campusId && staff.campusId !== rule.campusId) {
+        return false
       }
-
-      // 3. Si la regla no tiene turno explícito pero tiene hora esperada, comparamos hora base
-      if (rule.expectedEntryTime === "06:00" && tech.defaultShift === Shift.MANANA) return true
-      if (["08:00", "09:00", "10:00"].includes(rule.expectedEntryTime) && tech.defaultShift === Shift.INTERMEDIO) return true
-      if (rule.expectedEntryTime === "13:00" && tech.defaultShift === Shift.TARDE) return true
-      if (["19:00", "20:00", "21:00"].includes(rule.expectedEntryTime) && tech.defaultShift === Shift.NOCHE) return true
-
-      // Si es global total sin sede ni turno ni rol, afecta a los que no tienen regla más específica
-      if (!rule.campusId && !rule.role && !rule.shift) return true
-
-      return false
+      if (rule.shift && staff.defaultShift) {
+        return staff.defaultShift === rule.shift
+      }
+      if (!rule.shift) return true
+      return !staff.defaultShift
     })
   }
 
   const openCreateModal = (prefillShift?: Shift) => {
     setEditingRule(null)
     const targetShift = prefillShift || (activeShiftFilter !== "TODOS" ? (activeShiftFilter as Shift) : Shift.MANANA)
-    let defEntry = "06:00"
+    let defEntry = "08:00"
     let defName = "Regla Turno Mañana"
     let defDays = "1,2,3,4,5,6,0"
     if (targetShift === Shift.INTERMEDIO) {
-      defEntry = "09:00"
+      defEntry = "10:00"
       defName = "Regla Turno Intermedio"
-      defDays = "1,2,3,4,5,0"
     } else if (targetShift === Shift.TARDE) {
-      defEntry = "13:00"
+      defEntry = "14:00"
       defName = "Regla Turno Tarde"
     } else if (targetShift === Shift.NOCHE) {
-      defEntry = "21:00"
-      defName = "Regla Turno Noche / Guardia"
+      defEntry = "20:00"
+      defName = "Regla Turno Noche"
     }
 
     setFormData({
@@ -374,7 +359,7 @@ export function DashboardRules({
       shift: targetShift,
       daysOfWeek: defDays,
       campusId: "",
-      role: Role.TECNICO,
+      role: null,
       expectedEntryTime: defEntry,
       earlyEntryToleranceMinutes: 15,
       gracePeriodMinutes: 10,
@@ -659,59 +644,15 @@ export function DashboardRules({
                 value={formData.shift || ""}
                 onChange={(e) => {
                   const s = (e.target.value as Shift) || null
-                  let newEntry = formData.expectedEntryTime
-                  if (s === Shift.MANANA && newEntry !== "06:00") newEntry = "06:00"
-                  if (s === Shift.INTERMEDIO && !["08:00", "09:00", "10:00"].includes(newEntry)) newEntry = "09:00"
-                  if (s === Shift.TARDE && newEntry !== "13:00") newEntry = "13:00"
-                  setFormData({ ...formData, shift: s, expectedEntryTime: newEntry })
+                  setFormData({ ...formData, shift: s })
                 }}
                 className="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[#1967D2]"
               >
                 <option value="">(Sin clasificar / Global general)</option>
-                <option value="MANANA">🌅 Turno Mañana (~06:00 AM)</option>
-                <option value="INTERMEDIO">⛅ Turno Intermedio (~09:00 AM)</option>
-                <option value="TARDE">🌆 Turno Tarde (~01:00 PM / 13:00)</option>
+                <option value="MANANA">🌅 Turno Mañana</option>
+                <option value="INTERMEDIO">⛅ Turno Intermedio</option>
+                <option value="TARDE">🌆 Turno Tarde</option>
               </select>
-            </div>
-          </div>
-
-          {/* Presets Rápidos de Turnos para Técnicos */}
-          <div className="p-3.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-[#1967D2] flex items-center gap-1.5">
-                <Sparkles size={14} /> Presets Oficiales
-              </span>
-              <span className="text-[10px] text-slate-500 font-bold">Clic para autocompletar</span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {TECHNICIAN_SHIFT_PRESETS.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => {
-                    setFormData((prev) => ({
-                      ...prev,
-                      name: p.name,
-                      shift: p.shift,
-                      role: Role.TECNICO,
-                      expectedEntryTime: p.entry,
-                      daysOfWeek: p.daysOfWeek || "1,2,3,4,5,6,0",
-                      earlyEntryToleranceMinutes: p.early,
-                      gracePeriodMinutes: p.grace,
-                      lateToleranceMinutes: p.late,
-                    }))
-                    toast.info(`Cargado: ${p.name} (${p.entry})`)
-                  }}
-                  className="text-left p-2 rounded-xl border border-blue-200/60 bg-white hover:bg-blue-100/50 hover:border-[#1967D2] transition-all group shadow-xs"
-                >
-                  <p className="text-[11px] font-black text-slate-800 group-hover:text-[#1967D2] truncate">
-                    {p.name}
-                  </p>
-                  <span className="font-mono text-[10px] font-bold text-[#1967D2] bg-blue-50 px-1 py-0.5 rounded mt-0.5 inline-block">
-                    {p.entry}
-                  </span>
-                </button>
-              ))}
             </div>
           </div>
 
@@ -815,8 +756,7 @@ export function DashboardRules({
               >
                 <option value="">Todos los roles</option>
                 <option value="DOCENTE">Docentes</option>
-                <option value="TECNICO">Técnicos</option>
-                <option value="PACIENTE_SIMULADO">Pacientes Sim.</option>
+                <option value="ADMINISTRATIVO">Administrativos</option>
               </select>
             </div>
           </div>
@@ -1535,8 +1475,7 @@ export function DashboardRules({
                   >
                     <option value="">Cualquier Rol</option>
                     <option value="DOCENTE">Docente</option>
-                    <option value="TECNICO">Técnico</option>
-                    <option value="PACIENTE_SIMULADO">Paciente Simulado</option>
+                    <option value="ADMINISTRATIVO">Administrativo</option>
                   </select>
                 </div>
               </div>

@@ -110,7 +110,7 @@ export async function getLiveDailyProgramOverviewAction(
     const [dbUsers, todayRecords] = await Promise.all([
       prisma.user.findMany({
         where: {
-          role: { in: [Role.PACIENTE_SIMULADO, Role.DOCENTE] },
+          role: { in: [Role.ADMINISTRATIVO, Role.DOCENTE] },
         },
         select: {
           id: true,
@@ -146,7 +146,7 @@ export async function getLiveDailyProgramOverviewAction(
       recordsByUserId.set(r.userId, list)
     }
 
-    const dbPatients = dbUsers.filter((u) => u.role === Role.PACIENTE_SIMULADO)
+    const dbPatients = dbUsers.filter((u) => u.role === Role.ADMINISTRATIVO)
     const dbDocentes = dbUsers.filter((u) => u.role === Role.DOCENTE)
 
     // 1. Extraer todos los nombres únicos de Pacientes Simulados que figuran hoy en el Excel
@@ -179,7 +179,7 @@ export async function getLiveDailyProgramOverviewAction(
       const prog = matchDailyProgramFromSessions(
         sessions,
         lookupName,
-        Role.PACIENTE_SIMULADO,
+        Role.ADMINISTRATIVO,
         defaultCampus
       )
 
@@ -196,7 +196,7 @@ export async function getLiveDailyProgramOverviewAction(
         prog.sessions,
         userRecs,
         currentLimaMins,
-        Role.PACIENTE_SIMULADO
+        Role.ADMINISTRATIVO
       )
 
       const hasInCourse = resolution.modules.some((m) => m.status === "EN_CURSO")

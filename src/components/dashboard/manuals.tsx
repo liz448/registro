@@ -73,7 +73,7 @@ const MANUALS_CATALOG: ManualEntry[] = [
   {
     id: "admin-sede",
     title: "4. Manual del Administrador por Sede",
-    subtitle: "Guía operativa para responsables asignados exclusivamente a una sede universitaria",
+    subtitle: "Guía operativa para responsables asignados exclusivamente a una sede",
     badge: "Nivel 1: Admin por Sede",
     badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
     fileUrl: "/manuales/4_Manual_Admin_Por_Sede.pdf",
@@ -83,25 +83,8 @@ const MANUALS_CATALOG: ManualEntry[] = [
     highlights: [
       "Funcionamiento del filtro automático por sede asignada en métricas y reportes.",
       "Supervisión diaria de entradas, salidas, puntualidad y tardanzas de su campus.",
-      "Gestión del directorio de personal operativo de su sede.",
+      "Gestión del directorio de personal operativo (Docentes y Administrativos) de su sede.",
       "Autorización de la PC de recepción de su sede mediante Código de 1 Uso.",
-    ],
-  },
-  {
-    id: "coord-pacientes",
-    title: "5. Manual del Coordinador de Pacientes Simulados",
-    subtitle: "Guía especializada para el monitoreo, directorio y reportes exclusivos de Pacientes Simulados",
-    badge: "Nivel 2: Coord. Pacientes Simulados",
-    badgeColor: "bg-purple-50 text-purple-700 border-purple-200",
-    fileUrl: "/manuales/5_Manual_Coordinador_Pacientes_Simulados.pdf",
-    fileName: "5_Manual_Coordinador_Pacientes_Simulados.pdf",
-    icon: Users,
-    tiers: ["SUPER_ADMIN", "COORDINADOR_PACIENTES"],
-    highlights: [
-      "Entorno enfocado 100% en Pacientes Simulados (sin mezclar Técnicos ni Docentes).",
-      "Monitoreo en vivo de llegada y ambiente/consultorio asignado.",
-      "Alta individual y carga masiva de Pacientes Simulados mediante plantilla Excel.",
-      "Exportación de reportes de asistencia y puntualidad exclusivos de Pacientes Simulados.",
     ],
   },
 ]

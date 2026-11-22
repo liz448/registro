@@ -55,7 +55,6 @@ export async function upsertTechnicianScheduleAction(item: ScheduleItemInput) {
   try {
     await requireAdmin()
 
-    // Resolver usuario
     let targetUserId = item.userId
     if (!targetUserId && item.dni) {
       const u = await prisma.user.findUnique({ where: { dni: item.dni.trim() } })
@@ -63,10 +62,9 @@ export async function upsertTechnicianScheduleAction(item: ScheduleItemInput) {
       targetUserId = u.id
     }
     if (!targetUserId) {
-      return { success: false, message: "Debe seleccionar un técnico." }
+      return { success: false, message: "Debe seleccionar un colaborador." }
     }
 
-    // Resolver Sede
     let targetCampusId = item.campusId
     if (!targetCampusId && item.campusName) {
       let c = await prisma.campus.findUnique({ where: { name: item.campusName.trim() } })
@@ -79,12 +77,12 @@ export async function upsertTechnicianScheduleAction(item: ScheduleItemInput) {
       return { success: false, message: "Debe seleccionar la sede asignada." }
     }
 
-    // Normalizar turno y horario
     const shiftKey = (item.shift || Shift.MANANA) as Shift
     const def = DEFAULT_SHIFT_TIMES[shiftKey]
-    const entryTime = item.expectedEntryTime && item.expectedEntryTime.trim() !== ""
-      ? item.expectedEntryTime.trim()
-      : def.entry
+    const entryTime =
+      item.expectedEntryTime && item.expectedEntryTime.trim() !== ""
+        ? item.expectedEntryTime.trim()
+        : def.entry
     const early = item.earlyEntryToleranceMinutes ?? def.early
     const grace = item.gracePeriodMinutes ?? def.grace
     const late = item.lateToleranceMinutes ?? def.late
@@ -155,7 +153,7 @@ export async function deleteTechnicianScheduleAction(id: string) {
 }
 
 /**
- * Carga masiva de cronograma desde datos estructurados (vía Excel/CSV o post-OCR).
+ * Carga masiva de cronograma desde datos estructurados (vía Excel/CSV).
  */
 export async function bulkUpsertTechnicianSchedulesAction(items: ScheduleItemInput[]) {
   try {
@@ -165,17 +163,16 @@ export async function bulkUpsertTechnicianSchedulesAction(items: ScheduleItemInp
       return { success: false, message: "No hay registros para procesar." }
     }
 
-    // Precargar usuarios técnicos y sedes para resolución en memoria
-    const [technicians, campuses] = await Promise.all([
+    const [staffUsers, campuses] = await Promise.all([
       prisma.user.findMany({
-        where: { role: Role.TECNICO },
+        where: { role: { in: [Role.ADMINISTRATIVO, Role.DOCENTE] } },
         select: { id: true, name: true, dni: true },
       }),
       prisma.campus.findMany(),
     ])
 
-    const dniMap = new Map(technicians.map((t) => [t.dni.trim(), t]))
-    const nameMap = new Map(technicians.map((t) => [t.name.trim().toLowerCase(), t]))
+    const dniMap = new Map(staffUsers.map((t) => [t.dni.trim(), t]))
+    const nameMap = new Map(staffUsers.map((t) => [t.name.trim().toLowerCase(), t]))
     const campusMap = new Map(campuses.map((c) => [c.name.trim().toLowerCase(), c.id]))
 
     let processed = 0
@@ -190,8 +187,7 @@ export async function bulkUpsertTechnicianSchedulesAction(items: ScheduleItemInp
         continue
       }
 
-      // Buscar técnico por DNI o por coincidencia de nombre
-      let targetUser = item.userId ? technicians.find((t) => t.id === item.userId) : null
+      let targetUser = item.userId ? staffUsers.find((t) => t.id === item.userId) : null
       if (!targetUser && item.dni) {
         targetUser = dniMap.get(item.dni.trim()) || null
       }
@@ -199,24 +195,26 @@ export async function bulkUpsertTechnicianSchedulesAction(items: ScheduleItemInp
         const cleanName = String((item as any).name).trim().toLowerCase()
         targetUser = nameMap.get(cleanName) || null
         if (!targetUser) {
-          // Búsqueda parcial
-          targetUser = technicians.find((t) => t.name.toLowerCase().includes(cleanName) || cleanName.includes(t.name.toLowerCase())) || null
+          targetUser =
+            staffUsers.find(
+              (t) =>
+                t.name.toLowerCase().includes(cleanName) ||
+                cleanName.includes(t.name.toLowerCase())
+            ) || null
         }
       }
 
       if (!targetUser) {
         errors++
-        errorDetails.push(`Técnico no encontrado: ${item.dni || (item as any).name || "Sin identificar"}`)
+        errorDetails.push(`Colaborador no encontrado: ${item.dni || (item as any).name || "Sin identificar"}`)
         continue
       }
 
-      // Resolver Sede
       let targetCampusId = item.campusId
       if (!targetCampusId && item.campusName) {
         const cleanCName = item.campusName.trim().toLowerCase()
         targetCampusId = campusMap.get(cleanCName)
         if (!targetCampusId) {
-          // Coincidencia parcial con sedes conocidas (ej: "villa", "aramburu", "norte", "ate")
           for (const [cName, cId] of campusMap.entries()) {
             if (cName.includes(cleanCName) || cleanCName.includes(cName)) {
               targetCampusId = cId
@@ -232,7 +230,6 @@ export async function bulkUpsertTechnicianSchedulesAction(items: ScheduleItemInp
         continue
       }
 
-      // Normalizar turno
       let shiftKey: Shift = Shift.MANANA
       const rawShift = String(item.shift || "").toUpperCase().trim()
       if (rawShift.includes("EV") || rawShift.includes("EVENTO") || rawShift.includes("COMISION")) {
@@ -250,9 +247,10 @@ export async function bulkUpsertTechnicianSchedulesAction(items: ScheduleItemInp
       }
 
       const def = DEFAULT_SHIFT_TIMES[shiftKey] || DEFAULT_SHIFT_TIMES.MANANA
-      const entryTime = item.expectedEntryTime && item.expectedEntryTime.trim() !== ""
-        ? item.expectedEntryTime.trim()
-        : def.entry
+      const entryTime =
+        item.expectedEntryTime && item.expectedEntryTime.trim() !== ""
+          ? item.expectedEntryTime.trim()
+          : def.entry
       const early = item.earlyEntryToleranceMinutes ?? def.early
       const grace = item.gracePeriodMinutes ?? def.grace
       const late = item.lateToleranceMinutes ?? def.late
@@ -291,7 +289,6 @@ export async function bulkUpsertTechnicianSchedulesAction(items: ScheduleItemInp
       })
     }
 
-    // Ejecución optimizada en bloques concurrentes (reducción sustancial en tiempo de respuesta)
     const BATCH_SIZE = 25
     for (let i = 0; i < upsertBatch.length; i += BATCH_SIZE) {
       const chunk = upsertBatch.slice(i, i + BATCH_SIZE)
@@ -315,20 +312,18 @@ export async function bulkUpsertTechnicianSchedulesAction(items: ScheduleItemInp
 }
 
 /**
- * Consulta la asignación de hoy de un técnico (usada en la marcación de asistencia).
+ * Consulta la asignación de hoy de un colaborador (usada en la marcación de asistencia).
  */
 export async function getTodayTechnicianAssignmentAction(userId: string) {
   try {
-    // Fecha Lima en formato "YYYY-MM-DD"
     const now = new Date()
     const limaDateStr = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/Lima",
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
-    }).format(now) // devuelve "YYYY-MM-DD"
+    }).format(now)
 
-    // Buscar en cronograma del día
     const schedule = await prisma.technicianSchedule.findUnique({
       where: {
         userId_date: {
@@ -351,33 +346,23 @@ export async function getTodayTechnicianAssignmentAction(userId: string) {
     })
 
     if (schedule) {
-      let expectedEntryTime = schedule.expectedEntryTime
-      const def = DEFAULT_SHIFT_TIMES[schedule.shift] || DEFAULT_SHIFT_TIMES.MANANA
-      if (schedule.shift === Shift.INTERMEDIO && expectedEntryTime === "13:00") {
-        expectedEntryTime = def.entry
-      } else if (schedule.shift === Shift.MANANA && expectedEntryTime === "13:00") {
-        expectedEntryTime = def.entry
-      } else if (schedule.shift === Shift.TARDE && ["06:00", "07:00", "08:00", "09:00", "10:00"].includes(expectedEntryTime)) {
-        expectedEntryTime = "13:00"
-      }
-
       return {
         assignedToday: true,
         source: "SCHEDULE" as const,
         date: schedule.date,
         campus: schedule.campus,
         shift: schedule.shift,
-        expectedEntryTime,
+        expectedEntryTime: schedule.expectedEntryTime,
         earlyEntryToleranceMinutes: schedule.earlyEntryToleranceMinutes,
         gracePeriodMinutes: schedule.gracePeriodMinutes,
         lateToleranceMinutes: schedule.lateToleranceMinutes,
       }
     }
 
-    // Si no tiene cronograma programado hoy, usar su sede base y turno base del perfil
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
+        role: true,
         defaultShift: true,
         campus: {
           select: {
@@ -392,18 +377,10 @@ export async function getTodayTechnicianAssignmentAction(userId: string) {
       },
     })
 
-    // Día de la semana en Lima (0=Dom, 1=Lun, ..., 6=Sáb)
     const currentDayOfWeek = new Date(`${limaDateStr}T12:00:00Z`).getUTCDay()
-
-    let userShift = user?.defaultShift || Shift.MANANA
-    // En domingos, el personal de la tarde comúnmente rota a Turno Intermedio (09:00 AM) si no tiene cronograma explícito
-    if (currentDayOfWeek === 0 && userShift === Shift.TARDE) {
-      userShift = Shift.INTERMEDIO
-    }
-
+    const userShift = user?.defaultShift || Shift.MANANA
     const def = DEFAULT_SHIFT_TIMES[userShift] || DEFAULT_SHIFT_TIMES.MANANA
 
-    // Consultar si existe una regla personalizada para este turno, sede y día de la semana
     let expectedEntry = def.entry
     let early = def.early
     let grace = def.grace
@@ -411,23 +388,17 @@ export async function getTodayTechnicianAssignmentAction(userId: string) {
 
     const shiftRules = await prisma.toleranceRule.findMany({
       where: {
-        role: Role.TECNICO,
-        OR: [
-          ...(user?.campus?.id ? [{ campusId: user.campus.id }] : []),
-          { campusId: null },
-        ],
+        OR: [{ role: user?.role }, { role: null }],
       },
       orderBy: [{ campusId: "desc" }],
     })
 
-    // Reglas que coinciden con su turno
     const matchingRules = shiftRules.filter((r) => {
+      if (r.campusId && user?.campus?.id && r.campusId !== user.campus.id) return false
       if (r.shift) return r.shift === userShift
-      if (userShift === Shift.INTERMEDIO) return ["08:00", "09:00", "10:00"].includes(r.expectedEntryTime)
-      return r.expectedEntryTime === def.entry
+      return true
     })
 
-    // Reglas para el día de hoy según daysOfWeek
     const rulesForToday = matchingRules.filter((r) => {
       if (!r.daysOfWeek || r.daysOfWeek.trim() === "" || r.daysOfWeek === "ALL") return true
       const days = r.daysOfWeek.split(",").map((d) => Number(d.trim()))
@@ -443,7 +414,7 @@ export async function getTodayTechnicianAssignmentAction(userId: string) {
     }
 
     return {
-      assignedToday: user?.campus ? true : false,
+      assignedToday: Boolean(user?.campus),
       source: "DEFAULT_PROFILE" as const,
       date: limaDateStr,
       campus: user?.campus || null,

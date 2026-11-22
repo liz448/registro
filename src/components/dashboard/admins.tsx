@@ -156,10 +156,7 @@ export function DashboardAdmins({
       role: (tier === "SUPER_ADMIN" ? "SUPER_ADMIN" : "ADMIN_SECUNDARIO") as Role,
       adminTier: tier,
       password: editingAdmin.password,
-      campusId:
-        tier === "ADMIN_SEDE" || tier === "COORDINADOR_PACIENTES"
-          ? editingAdmin.adminCampusId || null
-          : null,
+      campusId: tier === "ADMIN_SEDE" ? editingAdmin.adminCampusId || null : null,
       permissions: editingAdmin.permissions || [],
     })
 
@@ -187,10 +184,7 @@ export function DashboardAdmins({
       role: (tier === "SUPER_ADMIN" ? "SUPER_ADMIN" : "ADMIN_SECUNDARIO") as Role,
       adminTier: tier,
       password: addingAdmin.password,
-      campusId:
-        tier === "ADMIN_SEDE" || tier === "COORDINADOR_PACIENTES"
-          ? addingAdmin.adminCampusId || null
-          : null,
+      campusId: tier === "ADMIN_SEDE" ? addingAdmin.adminCampusId || null : null,
       permissions: addingAdmin.permissions || [],
     })
 
@@ -232,14 +226,6 @@ export function DashboardAdmins({
         adminTier: "ADMIN_GLOBAL",
         adminCampusId: "",
         permissions: [...DEFAULT_ADMIN_GLOBAL_PERMS],
-      })
-    } else if (tier === "COORDINADOR_PACIENTES") {
-      setTargetObj({
-        ...targetObj,
-        role: "ADMIN_SECUNDARIO",
-        adminTier: "COORDINADOR_PACIENTES",
-        adminCampusId: "",
-        permissions: [...DEFAULT_COORDINADOR_PACIENTES_PERMS],
       })
     } else {
       setTargetObj({
@@ -450,9 +436,8 @@ export function DashboardAdmins({
                           : DEFAULT_ADMIN_GLOBAL_PERMS
 
                       const isOperationalAlso =
-                        admin.role === "TECNICO" ||
-                        admin.role === "DOCENTE" ||
-                        admin.role === "PACIENTE_SIMULADO"
+                        admin.role === "ADMINISTRATIVO" ||
+                        admin.role === "DOCENTE"
 
                       return (
                         <TableRow key={admin.id} className="border-slate-100 hover:bg-slate-50/80 transition-colors">
@@ -464,8 +449,6 @@ export function DashboardAdmins({
                                     ? "bg-indigo-600"
                                     : adminTier === "ADMIN_GLOBAL"
                                     ? "bg-[#1967D2]"
-                                    : adminTier === "COORDINADOR_PACIENTES"
-                                    ? "bg-purple-600"
                                     : "bg-emerald-600"
                                 }`}
                               >
@@ -480,7 +463,7 @@ export function DashboardAdmins({
                                   </p>
                                 ) : (
                                   <p className="text-[11px] font-semibold text-indigo-500">
-                                    Administrativo Neto
+                                    Administrador del Panel
                                   </p>
                                 )}
                               </div>
@@ -500,11 +483,6 @@ export function DashboardAdmins({
                                   <Globe size={13} /> Todas las Sedes
                                 </span>
                               )}
-                              {adminTier === "COORDINADOR_PACIENTES" && (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-black bg-purple-50 text-purple-700 border border-purple-200">
-                                  👩‍⚕️ Solo Pacientes
-                                </span>
-                              )}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -515,10 +493,6 @@ export function DashboardAdmins({
                             ) : adminTier === "ADMIN_GLOBAL" ? (
                               <span className="px-3 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase bg-blue-100 text-blue-700 border border-blue-200">
                                 Admin General
-                              </span>
-                            ) : adminTier === "COORDINADOR_PACIENTES" ? (
-                              <span className="px-3 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase bg-purple-100 text-purple-700 border border-purple-200">
-                                Coord. Pacientes
                               </span>
                             ) : (
                               <span className="px-3 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase bg-emerald-100 text-emerald-700 border border-emerald-200">
@@ -651,7 +625,7 @@ export function DashboardAdmins({
                   <span className="text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
                     <Sliders size={14} className="text-indigo-600" /> Nivel de Rol Administrativo
                   </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     <button
                       type="button"
                       onClick={() => applyTierTemplate(addingAdmin, setAddingAdmin, "ADMIN_SEDE")}
@@ -673,25 +647,6 @@ export function DashboardAdmins({
 
                     <button
                       type="button"
-                      onClick={() => applyTierTemplate(addingAdmin, setAddingAdmin, "COORDINADOR_PACIENTES")}
-                      className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
-                        addingAdmin?.adminTier === "COORDINADOR_PACIENTES"
-                          ? "bg-purple-600 text-white border-purple-600 shadow-sm"
-                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                      }`}
-                    >
-                      <div className="font-black text-xs">2. Coord. Pacientes Simulados</div>
-                      <div
-                        className={`text-[11px] mt-0.5 ${
-                          addingAdmin?.adminTier === "COORDINADOR_PACIENTES" ? "text-purple-100" : "text-slate-400"
-                        }`}
-                      >
-                        Gestiona y exporta exclusivamente Pacientes Simulados
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
                       onClick={() => applyTierTemplate(addingAdmin, setAddingAdmin, "ADMIN_GLOBAL")}
                       className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
                         addingAdmin?.adminTier === "ADMIN_GLOBAL"
@@ -699,7 +654,7 @@ export function DashboardAdmins({
                           : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                       }`}
                     >
-                      <div className="font-black text-xs">3. Admin General</div>
+                      <div className="font-black text-xs">2. Admin General</div>
                       <div
                         className={`text-[11px] mt-0.5 ${
                           addingAdmin?.adminTier === "ADMIN_GLOBAL" ? "text-blue-100" : "text-slate-400"
@@ -719,7 +674,7 @@ export function DashboardAdmins({
                             : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                         }`}
                       >
-                        <div className="font-black text-xs">4. Super Admin</div>
+                        <div className="font-black text-xs">3. Super Admin</div>
                         <div
                           className={`text-[11px] mt-0.5 ${
                             addingAdmin?.adminTier === "SUPER_ADMIN" ? "text-indigo-100" : "text-slate-400"
@@ -761,21 +716,16 @@ export function DashboardAdmins({
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">
                       Sede que Visualizará como Admin
                     </label>
-                    {addingAdmin?.adminTier === "ADMIN_SEDE" ||
-                    addingAdmin?.adminTier === "COORDINADOR_PACIENTES" ? (
+                    {addingAdmin?.adminTier === "ADMIN_SEDE" ? (
                       <select
                         value={addingAdmin?.adminCampusId || ""}
                         onChange={(e) =>
                           setAddingAdmin({ ...addingAdmin, adminCampusId: e.target.value })
                         }
                         className="w-full h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-600"
-                        required={addingAdmin?.adminTier === "ADMIN_SEDE"}
+                        required
                       >
-                        {addingAdmin?.adminTier === "COORDINADOR_PACIENTES" ? (
-                          <option value="">Todas las sedes (Global — Solo Pacientes)</option>
-                        ) : (
-                          <option value="">Seleccione sede asignada...</option>
-                        )}
+                        <option value="">Seleccione sede asignada...</option>
                         {campuses.map((c) => (
                           <option key={c.id} value={c.id}>
                             Solo {c.name}
@@ -914,7 +864,7 @@ export function DashboardAdmins({
                   <span className="text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
                     <Sliders size={14} className="text-indigo-600" /> Nivel de Rol Administrativo
                   </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     <button
                       type="button"
                       onClick={() => applyTierTemplate(editingAdmin, setEditingAdmin, "ADMIN_SEDE")}
@@ -936,25 +886,6 @@ export function DashboardAdmins({
 
                     <button
                       type="button"
-                      onClick={() => applyTierTemplate(editingAdmin, setEditingAdmin, "COORDINADOR_PACIENTES")}
-                      className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
-                        editingAdmin?.adminTier === "COORDINADOR_PACIENTES"
-                          ? "bg-purple-600 text-white border-purple-600 shadow-sm"
-                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                      }`}
-                    >
-                      <div className="font-black text-xs">2. Coord. Pacientes Simulados</div>
-                      <div
-                        className={`text-[11px] mt-0.5 ${
-                          editingAdmin?.adminTier === "COORDINADOR_PACIENTES" ? "text-purple-100" : "text-slate-400"
-                        }`}
-                      >
-                        Gestiona y exporta exclusivamente Pacientes Simulados
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
                       onClick={() => applyTierTemplate(editingAdmin, setEditingAdmin, "ADMIN_GLOBAL")}
                       className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
                         editingAdmin?.adminTier === "ADMIN_GLOBAL"
@@ -962,7 +893,7 @@ export function DashboardAdmins({
                           : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                       }`}
                     >
-                      <div className="font-black text-xs">3. Admin General</div>
+                      <div className="font-black text-xs">2. Admin General</div>
                       <div
                         className={`text-[11px] mt-0.5 ${
                           editingAdmin?.adminTier === "ADMIN_GLOBAL" ? "text-blue-100" : "text-slate-400"
@@ -982,7 +913,7 @@ export function DashboardAdmins({
                             : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                         }`}
                       >
-                        <div className="font-black text-xs">4. Super Admin</div>
+                        <div className="font-black text-xs">3. Super Admin</div>
                         <div
                           className={`text-[11px] mt-0.5 ${
                             editingAdmin?.adminTier === "SUPER_ADMIN" ? "text-indigo-100" : "text-slate-400"
@@ -1025,21 +956,16 @@ export function DashboardAdmins({
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">
                       Sede que Visualiza como Admin
                     </label>
-                    {editingAdmin?.adminTier === "ADMIN_SEDE" ||
-                    editingAdmin?.adminTier === "COORDINADOR_PACIENTES" ? (
+                    {editingAdmin?.adminTier === "ADMIN_SEDE" ? (
                       <select
                         value={editingAdmin?.adminCampusId || ""}
                         onChange={(e) =>
                           setEditingAdmin({ ...editingAdmin, adminCampusId: e.target.value })
                         }
                         className="w-full h-12 rounded-xl bg-slate-50 border border-slate-200 px-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-600"
-                        required={editingAdmin?.adminTier === "ADMIN_SEDE"}
+                        required
                       >
-                        {editingAdmin?.adminTier === "COORDINADOR_PACIENTES" ? (
-                          <option value="">Todas las sedes (Global — Solo Pacientes)</option>
-                        ) : (
-                          <option value="">Seleccione sede asignada...</option>
-                        )}
+                        <option value="">Seleccione sede asignada...</option>
                         {campuses.map((c) => (
                           <option key={c.id} value={c.id}>
                             Solo {c.name}

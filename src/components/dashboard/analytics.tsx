@@ -24,8 +24,7 @@ const COLORS = {
 
 const ROLE_STYLES: Record<string, { label: string; className: string }> = {
   DOCENTE: { label: "Docente", className: "bg-blue-50 text-blue-700 ring-blue-600/10" },
-  TECNICO: { label: "Técnico", className: "bg-purple-50 text-purple-700 ring-purple-600/10" },
-  PACIENTE_SIMULADO: { label: "Paciente Sim.", className: "bg-emerald-50 text-emerald-700 ring-emerald-600/10" },
+  ADMINISTRATIVO: { label: "Administrativo", className: "bg-purple-50 text-purple-700 ring-purple-600/10" },
 }
 
 const trendConfig = {
@@ -367,7 +366,7 @@ export function DashboardAnalytics({ initialData, lockedCampus }: { initialData:
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mt-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 mt-6">
             {/* DOCENTES */}
             <div className="relative overflow-hidden rounded-2xl border-2 border-blue-100 bg-gradient-to-br from-blue-50/60 to-white p-5 transition-all duration-300 hover:shadow-lg hover:border-blue-300 hover:-translate-y-0.5">
               <div className="flex items-center justify-between">
@@ -390,57 +389,32 @@ export function DashboardAnalytics({ initialData, lockedCampus }: { initialData:
                   style={{ width: `${data.registeredStaff?.total > 0 ? ((data.registeredStaff?.docentes ?? 0) / data.registeredStaff.total) * 100 : 0}%` }} 
                 />
               </div>
-              <p className="mt-2 text-[11px] font-semibold text-slate-500">Catedráticos y médicos instructores</p>
+              <p className="mt-2 text-[11px] font-semibold text-slate-500">Plana docente e instructores</p>
             </div>
 
-            {/* PACIENTES SIMULADOS */}
-            <div className="relative overflow-hidden rounded-2xl border-2 border-emerald-100 bg-gradient-to-br from-emerald-50/60 to-white p-5 transition-all duration-300 hover:shadow-lg hover:border-emerald-300 hover:-translate-y-0.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black uppercase tracking-wider text-emerald-700">Pacientes Simulados</span>
-                <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-md shadow-emerald-500/20">
-                  <Stethoscope size={20} />
-                </div>
-              </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl md:text-4xl font-black text-slate-800 tabular-nums">
-                  {data.registeredStaff?.pacientes ?? 0}
-                </span>
-                <span className="text-xs font-bold text-emerald-600 bg-emerald-100/70 px-2 py-0.5 rounded-full">
-                  {data.registeredStaff?.total > 0 ? Math.round(((data.registeredStaff?.pacientes ?? 0) / data.registeredStaff.total) * 100) : 0}%
-                </span>
-              </div>
-              <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-emerald-100">
-                <div 
-                  className="h-full rounded-full bg-emerald-600 transition-all duration-700" 
-                  style={{ width: `${data.registeredStaff?.total > 0 ? ((data.registeredStaff?.pacientes ?? 0) / data.registeredStaff.total) * 100 : 0}%` }} 
-                />
-              </div>
-              <p className="mt-2 text-[11px] font-semibold text-slate-500">Actores y pacientes para evaluación clínica</p>
-            </div>
-
-            {/* TÉCNICOS */}
+            {/* ADMINISTRATIVOS */}
             <div className="relative overflow-hidden rounded-2xl border-2 border-purple-100 bg-gradient-to-br from-purple-50/60 to-white p-5 transition-all duration-300 hover:shadow-lg hover:border-purple-300 hover:-translate-y-0.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black uppercase tracking-wider text-purple-700">Técnicos de Simulación</span>
+                <span className="text-xs font-black uppercase tracking-wider text-purple-700">Personal Administrativo</span>
                 <div className="p-2.5 bg-purple-600 text-white rounded-xl shadow-md shadow-purple-500/20">
-                  <Wrench size={20} />
+                  <Users size={20} />
                 </div>
               </div>
               <div className="mt-3 flex items-baseline gap-2">
                 <span className="text-3xl md:text-4xl font-black text-slate-800 tabular-nums">
-                  {data.registeredStaff?.tecnicos ?? 0}
+                  {data.registeredStaff?.administrativos ?? 0}
                 </span>
                 <span className="text-xs font-bold text-purple-600 bg-purple-100/70 px-2 py-0.5 rounded-full">
-                  {data.registeredStaff?.total > 0 ? Math.round(((data.registeredStaff?.tecnicos ?? 0) / data.registeredStaff.total) * 100) : 0}%
+                  {data.registeredStaff?.total > 0 ? Math.round(((data.registeredStaff?.administrativos ?? 0) / data.registeredStaff.total) * 100) : 0}%
                 </span>
               </div>
               <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-purple-100">
                 <div 
                   className="h-full rounded-full bg-purple-600 transition-all duration-700" 
-                  style={{ width: `${data.registeredStaff?.total > 0 ? ((data.registeredStaff?.tecnicos ?? 0) / data.registeredStaff.total) * 100 : 0}%` }} 
+                  style={{ width: `${data.registeredStaff?.total > 0 ? ((data.registeredStaff?.administrativos ?? 0) / data.registeredStaff.total) * 100 : 0}%` }} 
                 />
               </div>
-              <p className="mt-2 text-[11px] font-semibold text-slate-500">Operadores de simulación y soporte</p>
+              <p className="mt-2 text-[11px] font-semibold text-slate-500">Secretarías, oficinas y gestión administrativa</p>
             </div>
           </div>
         </div>

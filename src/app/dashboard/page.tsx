@@ -10,7 +10,6 @@ import {
   Clock,
   Layers,
   Calendar as CalendarIcon,
-  CalendarClock,
   ScrollText,
   Globe,
   BookOpen
@@ -27,7 +26,6 @@ import { DashboardAnalytics } from "@/components/dashboard/analytics"
 import { DashboardRules } from "@/components/dashboard/rules"
 import { DashboardCatalogs } from "@/components/dashboard/catalogs"
 import { DashboardSchedules } from "@/components/dashboard/schedules"
-import { DashboardDailyProgram } from "@/components/dashboard/daily-program"
 import { DashboardAuditLogs } from "@/components/dashboard/audit-logs"
 import { DashboardManuals } from "@/components/dashboard/manuals"
 import { ForceChangePasswordModal } from "@/components/dashboard/force-change-password-modal"
@@ -44,7 +42,6 @@ export default async function DashboardPage() {
   
   const currentUserRole = session.role
   const adminTier = session.adminTier
-  const scopedRole = session.scopedRole // "PACIENTE_SIMULADO" para Coordinador de Pacientes Simulados, null para el resto
   const scopedCampusId = session.campusId // null para Todas las Sedes; ID de sede si está restringido a 1 sede
   const permissions = session.permissions || []
 
@@ -73,22 +70,19 @@ export default async function DashboardPage() {
     prisma.attendanceRecord.findMany({
       where: {
         ...(scopedCampusId ? { campusId: scopedCampusId } : {}),
-        ...(scopedRole ? { user: { role: scopedRole } } : {}),
       },
       orderBy: { timestamp: 'desc' },
       take: 1000,
       include: {
-        // Solo los campos necesarios (nunca enviar contraseñas al navegador y reducir el peso de la página)
         user: { select: { id: true, name: true, dni: true, role: true, defaultShift: true } },
         campus: { select: { id: true, name: true } },
         course: { select: { id: true, name: true } },
       }
     }),
-    // Personal Operativo: Si es Coordinador de Pacientes Simulados, solo obtiene PACIENTE_SIMULADO.
-    // Los administrativos netos (role = SUPER_ADMIN / ADMIN_SECUNDARIO) NUNCA aparecen aquí.
+    // Personal Operativo: Docentes y Administrativos
     prisma.user.findMany({
       where: {
-        role: scopedRole ? scopedRole : { in: ['DOCENTE', 'TECNICO', 'PACIENTE_SIMULADO'] },
+        role: { in: ['DOCENTE', 'ADMINISTRATIVO'] },
         ...(scopedCampusId ? { campusId: scopedCampusId } : {}),
       },
       include: { campus: { select: { id: true, name: true } } },
@@ -107,7 +101,7 @@ export default async function DashboardPage() {
           orderBy: { name: 'asc' },
         })
       : Promise.resolve([]),
-    computeAnalytics({ days: 30, campusId: scopedCampusId, roleFilter: scopedRole }),
+    computeAnalytics({ days: 30, campusId: scopedCampusId }),
     hasAccess("rules")
       ? prisma.toleranceRule.findMany({
           where: scopedCampusId ? { OR: [{ campusId: scopedCampusId }, { campusId: null }] } : undefined,
@@ -133,7 +127,7 @@ export default async function DashboardPage() {
           }
         })
       : Promise.resolve([]),
-    (hasAccess("rules") || hasAccess("users")) && !scopedRole
+    hasAccess("rules") || hasAccess("users")
       ? prisma.technicianSchedule.findMany({
           where: scopedCampusId ? { campusId: scopedCampusId } : undefined,
           orderBy: [{ date: 'desc' }, { expectedEntryTime: 'asc' }],
@@ -149,7 +143,6 @@ export default async function DashboardPage() {
     hasAccess("kiosk") ? getKioskOneTimeCodesList() : Promise.resolve([]),
   ])
 
-  // Nunca enviar contraseñas (ni hashes) a los componentes cliente
   const users = rawUsers.map(({ password: _pw, ...u }) => u)
   const admins = rawAdmins.map(({ password: _pw, ...a }) => a)
 
@@ -163,12 +156,10 @@ export default async function DashboardPage() {
     label: formatDayLabel(d.day),
   }))
 
-  // Sedes visibles según el alcance del administrador logueado
   const visibleCampuses = scopedCampusId
     ? allCampuses.filter((c) => c.id === scopedCampusId)
     : allCampuses
 
-  // Determinar default tab accesible
   const defaultTab = hasAccess("overview") ? "overview" :
     hasAccess("analytics") ? "analytics" :
     hasAccess("reports") ? "reports" :
@@ -180,10 +171,8 @@ export default async function DashboardPage() {
   const tierLabel =
     adminTier === "SUPER_ADMIN"
       ? "Super Admin"
-      : adminTier === "COORDINADOR_PACIENTES"
-      ? "Coord. Pacientes Simulados"
       : adminTier === "ADMIN_SEDE"
-      ? `Admin por Sede`
+      ? "Admin por Sede"
       : "Admin General"
   
   return (
@@ -195,7 +184,7 @@ export default async function DashboardPage() {
         {/* Cabecera / Logo del Sidebar */}
         <div className="p-8 border-b border-white/10">
           <h2 className="text-2xl font-black tracking-tight">Admin<span className="text-[#1967D2]">Panel</span></h2>
-          <p className="text-xs text-slate-400 mt-2 font-medium tracking-wide uppercase">Científica del Sur</p>
+          <p className="text-xs text-slate-400 mt-2 font-medium tracking-wide uppercase">Control de Asistencia</p>
           {session.campusName ? (
             <div className="mt-3 px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-400/25 text-xs font-bold text-emerald-200">
               📍 Vista: {session.campusName}
@@ -203,11 +192,6 @@ export default async function DashboardPage() {
           ) : (
             <div className="mt-3 px-3 py-1.5 rounded-xl bg-white/10 border border-white/10 text-xs font-bold text-blue-200 flex items-center gap-1.5">
               <Globe size={13} /> Vista: Todas las Sedes
-            </div>
-          )}
-          {scopedRole === "PACIENTE_SIMULADO" && (
-            <div className="mt-2 px-3 py-1.5 rounded-xl bg-purple-500/20 border border-purple-400/30 text-xs font-bold text-purple-200">
-              👩‍⚕️ Solo Pacientes Simulados
             </div>
           )}
         </div>
@@ -260,22 +244,12 @@ export default async function DashboardPage() {
               </TabsTrigger>
             )}
 
-            {(hasAccess("rules") || hasAccess("users")) && !scopedRole && (
+            {(hasAccess("rules") || hasAccess("users")) && (
               <TabsTrigger 
                 value="schedules" 
                 className="w-full justify-start gap-4 px-5 py-3.5 text-sm md:text-base font-bold rounded-2xl text-slate-300 data-[state=active]:bg-[#1967D2] data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-900/50 hover:bg-white/5 transition-all outline-none"
               >
-                <CalendarIcon size={20}/> Cronograma Técnicos
-              </TabsTrigger>
-            )}
-
-            {(hasAccess("users") || hasAccess("overview") || hasAccess("rules")) && (
-              <TabsTrigger 
-                id="trigger-daily-program"
-                value="daily-program" 
-                className="w-full justify-start gap-4 px-5 py-3.5 text-sm md:text-base font-bold rounded-2xl text-emerald-200/95 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-emerald-900/50 hover:bg-white/5 transition-all outline-none"
-              >
-                <CalendarClock size={20}/> Horarios del Día (Excel)
+                <CalendarIcon size={20}/> Cronograma de Turnos
               </TabsTrigger>
             )}
 
@@ -286,7 +260,7 @@ export default async function DashboardPage() {
                 value="users" 
                 className="w-full justify-start gap-4 px-5 py-3.5 text-sm md:text-base font-bold rounded-2xl text-slate-300 data-[state=active]:bg-[#1967D2] data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-900/50 hover:bg-white/5 transition-all outline-none"
               >
-                <Users size={20}/> {scopedRole === "PACIENTE_SIMULADO" ? "Pacientes Simulados" : "Personal Operativo"}
+                <Users size={20}/> Personal Operativo
               </TabsTrigger>
             )}
 
@@ -346,7 +320,6 @@ export default async function DashboardPage() {
             <h1 className="text-2xl font-extrabold text-slate-800">Centro de Control</h1>
             <p className="text-sm font-medium text-slate-500">
               Gestión y Monitoreo en Tiempo Real — {session.campusName ? `Sede: ${session.campusName}` : "Todas las Sedes"}
-              {scopedRole === "PACIENTE_SIMULADO" ? " • Pacientes Simulados" : ""}
             </p>
           </div>
           
@@ -358,7 +331,7 @@ export default async function DashboardPage() {
                   {tierLabel} {session.campusName ? `(${session.campusName})` : ""}
                 </p>
              </div>
-             <div className={`w-10 h-10 text-white font-black flex items-center justify-center rounded-full shadow-sm ${currentUserRole === 'SUPER_ADMIN' ? 'bg-indigo-600 shadow-indigo-500/30' : adminTier === 'COORDINADOR_PACIENTES' ? 'bg-purple-600 shadow-purple-500/30' : 'bg-[#1967D2] shadow-blue-500/30'}`}>
+             <div className={`w-10 h-10 text-white font-black flex items-center justify-center rounded-full shadow-sm ${currentUserRole === 'SUPER_ADMIN' ? 'bg-indigo-600 shadow-indigo-500/30' : 'bg-[#1967D2] shadow-blue-500/30'}`}>
                 {session.name ? session.name.slice(0, 2).toUpperCase() : (currentUserRole === 'SUPER_ADMIN' ? 'SA' : 'AD')}
              </div>
           </div>
@@ -390,7 +363,6 @@ export default async function DashboardPage() {
                   initialRecords={records}
                   campuses={visibleCampuses}
                   initialOvertimeSettings={overtimeSettings}
-                  lockedOperationalRole={scopedRole}
                 />
               </TabsContent>
             )}
@@ -400,26 +372,17 @@ export default async function DashboardPage() {
                 <DashboardRules
                   rules={rules}
                   campuses={visibleCampuses}
-                  technicians={users.filter((u) => u.role === "TECNICO") as any}
+                  technicians={users as any}
                 />
               </TabsContent>
             )}
 
-            {(hasAccess("rules") || hasAccess("users")) && !scopedRole && (
+            {(hasAccess("rules") || hasAccess("users")) && (
               <TabsContent value="schedules" className="m-0 p-0 outline-none">
                 <DashboardSchedules
                   initialSchedules={technicianSchedules as any}
-                  technicians={users.filter((u) => u.role === "TECNICO") as any}
+                  technicians={users as any}
                   campuses={visibleCampuses}
-                />
-              </TabsContent>
-            )}
-
-            {(hasAccess("users") || hasAccess("overview") || hasAccess("rules")) && (
-              <TabsContent value="daily-program" className="m-0 p-0 outline-none">
-                <DashboardDailyProgram
-                  scopedCampusName={session.campusName}
-                  lockedOperationalRole={scopedRole}
                 />
               </TabsContent>
             )}
@@ -430,7 +393,6 @@ export default async function DashboardPage() {
                   users={users}
                   campuses={visibleCampuses}
                   currentUserRole={currentUserRole}
-                  lockedOperationalRole={scopedRole}
                 />
               </TabsContent>
             )}

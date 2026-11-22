@@ -116,7 +116,7 @@ async function buildAttendanceDirectory(): Promise<Record<string, any>> {
         day: "2-digit",
       }).format(now)
 
-      const [users, todayRecords, todaySchedules, allRules, dailySessions] = await Promise.all([
+      const [users, todayRecords, todaySchedules, allRules] = await Promise.all([
         prisma.user.findMany({
           select: {
             id: true,
@@ -138,7 +138,6 @@ async function buildAttendanceDirectory(): Promise<Record<string, any>> {
           include: { campus: true },
         }),
         getCachedToleranceRulesList(),
-        fetchDailyProgramSessions(),
       ])
 
       const lastRecordByUserId = new Map<string, RecordType>()
@@ -159,82 +158,63 @@ async function buildAttendanceDirectory(): Promise<Record<string, any>> {
         scheduleByUserId.set(s.userId, s)
       }
 
-      const techRules = allRules.filter((r: any) => r.role === Role.TECNICO)
       const directory: Record<string, any> = {}
 
       for (const user of users) {
         const dniKey = user.dni.trim()
         const isAdmin = user.role === Role.SUPER_ADMIN || user.role === Role.ADMIN_SECUNDARIO
-        const effectiveRole: Role = isAdmin ? Role.DOCENTE : user.role
-        const todaySched = effectiveRole === Role.TECNICO ? scheduleByUserId.get(user.id) : null
+        const effectiveRole: Role = isAdmin ? Role.ADMINISTRATIVO : user.role
+        const todaySched = scheduleByUserId.get(user.id)
 
-        if (effectiveRole === Role.TECNICO && todaySched?.shift === Shift.DESCANSO) {
+        if (todaySched?.shift === Shift.DESCANSO || (!todaySched && user.defaultShift === Shift.DESCANSO)) {
           directory[dniKey] = {
             success: false,
-            message: `🏖️ Hola ${user.name}, hoy tienes asignado tu DÍA DE DESCANSO según el cronograma oficial. No requieres registrar asistencia.`,
+            message: `🏖️ Hola ${user.name}, hoy tienes asignado tu DÍA DE DESCANSO según el cronograma. No requieres registrar asistencia.`,
           }
           continue
         }
 
-        if (
-          effectiveRole === Role.TECNICO &&
-          (todaySched?.shift === Shift.COMISION || (!todaySched && user.defaultShift === Shift.COMISION))
-        ) {
+        if (todaySched?.shift === Shift.COMISION || (!todaySched && user.defaultShift === Shift.COMISION)) {
           directory[dniKey] = {
             success: false,
             isComision: true,
-            message: `✈️ Hola ${user.name}, hoy estás en COMISIÓN DE SERVICIO / EVENTO ESPECIAL (EV) en provincia según el cronograma oficial. No es necesario marcar asistencia.`,
+            message: `✈️ Hola ${user.name}, hoy estás en COMISIÓN DE SERVICIO / EVENTO ESPECIAL (EV). No es necesario marcar asistencia.`,
           }
           continue
         }
 
         let technicianAssignment: any = null
-        let dailyProgram: UserDailyProgramSummary | null = null
 
-        if (effectiveRole === Role.TECNICO) {
-          if (todaySched) {
-            let expectedTime = todaySched.expectedEntryTime
-            const def = DEFAULT_SHIFT_TIMES[todaySched.shift as Shift] || DEFAULT_SHIFT_TIMES.MANANA
-            if (todaySched.shift === Shift.INTERMEDIO && expectedTime === "13:00") expectedTime = def.entry
-            else if (todaySched.shift === Shift.MANANA && expectedTime === "13:00") expectedTime = def.entry
-            else if (
-              todaySched.shift === Shift.TARDE &&
-              ["06:00", "07:00", "08:00", "09:00", "10:00"].includes(expectedTime)
-            ) {
-              expectedTime = "13:00"
-            }
-            technicianAssignment = {
-              campusName: todaySched.campus?.name || user.campus?.name || "Campus Villa",
-              shift: todaySched.shift,
-              expectedEntryTime: expectedTime,
-              expectedExitTime: calculateExpectedExitTime(expectedTime, 9),
-              source: "SCHEDULE",
-            }
-          } else {
-            const defaultShift = user.defaultShift || Shift.MANANA
-            const def = DEFAULT_SHIFT_TIMES[defaultShift] || DEFAULT_SHIFT_TIMES.MANANA
-            const matchingRule =
-              techRules.find(
-                (r: any) =>
-                  (r.shift === defaultShift || r.shift === null) &&
-                  (r.campusId === user.campusId || r.campusId === null)
-              ) || null
+        if (todaySched) {
+          const expectedTime = todaySched.expectedEntryTime
+          technicianAssignment = {
+            campusName: todaySched.campus?.name || user.campus?.name || "Sede Principal",
+            shift: todaySched.shift,
+            expectedEntryTime: expectedTime,
+            expectedExitTime: calculateExpectedExitTime(expectedTime, 9),
+            source: "SCHEDULE",
+          }
+        } else {
+          const defaultShift = user.defaultShift || null
+          const matchingRule =
+            allRules.find(
+              (r: any) =>
+                (r.role === effectiveRole || r.role === null) &&
+                (!defaultShift || r.shift === defaultShift || r.shift === null) &&
+                (r.campusId === user.campusId || r.campusId === null)
+            ) || null
+          if (defaultShift || matchingRule) {
+            const shiftKey = (defaultShift || matchingRule?.shift || Shift.MANANA) as Shift
+            const def = DEFAULT_SHIFT_TIMES[shiftKey] || DEFAULT_SHIFT_TIMES.MANANA
             const expectedEntry = matchingRule?.expectedEntryTime || def.entry
             technicianAssignment = {
-              campusName: user.campus?.name || "Campus Villa",
-              shift: defaultShift,
+              campusName: user.campus?.name || "Sede Principal",
+              shift: shiftKey,
               expectedEntryTime: expectedEntry,
               expectedExitTime: calculateExpectedExitTime(expectedEntry, 9),
               source: "DEFAULT_PROFILE",
             }
           }
-        } else {
-          dailyProgram = matchDailyProgramFromSessions(
-            dailySessions,
-            user.name,
-            effectiveRole,
-            user.campus?.name || "Campus Villa"
-          )
         }
 
         directory[dniKey] = {
@@ -246,15 +226,14 @@ async function buildAttendanceDirectory(): Promise<Record<string, any>> {
             campusId: user.campusId,
             campusName:
               technicianAssignment?.campusName ||
-              (dailyProgram?.found ? dailyProgram.campusName : null) ||
               user.campus?.name ||
-              "Campus Villa",
+              "Sede Principal",
             defaultShift: user.defaultShift,
           },
           lastRecordType: lastRecordByUserId.get(user.id) ?? null,
           todayRecords: todayRecordsByUserId.get(user.id) ?? [],
           technicianAssignment,
-          dailyProgram,
+          dailyProgram: null,
         }
       }
 
@@ -460,10 +439,7 @@ export async function validateUserAction(
         if (!forceFreshProgram) {
           return deviceFingerprint ? { ...hit, boundDni: cleanDni } : hit
         }
-        // Si es Técnico, no depende del Excel de programación diaria de simulación
-        if (hit.user?.role === Role.TECNICO) {
-          return deviceFingerprint ? { ...hit, boundDni: cleanDni } : hit
-        }
+        return deviceFingerprint ? { ...hit, boundDni: cleanDni } : hit
       }
     }
 
@@ -523,7 +499,7 @@ export async function validateUserAction(
 
     // Determinar el rol operativo automáticamente a partir del usuario en BD
     const isAdmin = user.role === Role.SUPER_ADMIN || user.role === Role.ADMIN_SECUNDARIO
-    const effectiveRole: Role = isAdmin ? (roleOverride || Role.DOCENTE) : user.role
+    const effectiveRole: Role = isAdmin ? (roleOverride || Role.ADMINISTRATIVO) : user.role
 
     // Verificar y vincular el celular/equipo personal al DNI si aplica (Bloqueo anti-suplantación 1 Equipo <-> 1 DNI)
     if (deviceFingerprint) {
@@ -547,20 +523,20 @@ export async function validateUserAction(
       }
     }
 
-    if (effectiveRole === Role.TECNICO && todaySched?.shift === Shift.DESCANSO) {
+    if (todaySched?.shift === Shift.DESCANSO || (!todaySched && user.defaultShift === Shift.DESCANSO)) {
       return {
         success: false,
         boundDni: deviceFingerprint ? cleanDni : undefined,
-        message: `🏖️ Hola ${user.name}, hoy tienes asignado tu DÍA DE DESCANSO según el cronograma oficial. No requieres registrar asistencia.`,
+        message: `🏖️ Hola ${user.name}, hoy tienes asignado tu DÍA DE DESCANSO según el cronograma. No requieres registrar asistencia.`,
       }
     }
 
-    if (effectiveRole === Role.TECNICO && (todaySched?.shift === Shift.COMISION || (!todaySched && user.defaultShift === Shift.COMISION))) {
+    if (todaySched?.shift === Shift.COMISION || (!todaySched && user.defaultShift === Shift.COMISION)) {
       return {
         success: false,
         isComision: true,
         boundDni: deviceFingerprint ? cleanDni : undefined,
-        message: `✈️ Hola ${user.name}, hoy estás en COMISIÓN DE SERVICIO / EVENTO ESPECIAL (EV) en provincia según el cronograma oficial. No es necesario marcar asistencia.`,
+        message: `✈️ Hola ${user.name}, hoy estás en COMISIÓN DE SERVICIO / EVENTO ESPECIAL (EV). No es necesario marcar asistencia.`,
       }
     }
 
@@ -572,55 +548,37 @@ export async function validateUserAction(
       source: "SCHEDULE" | "DEFAULT_PROFILE"
     } | null = null
 
-    let dailyProgram: UserDailyProgramSummary | null = null
+    if (todaySched) {
+      const expectedTime = todaySched.expectedEntryTime
+      technicianAssignment = {
+        campusName: todaySched.campus?.name || user.campus?.name || "Sede Principal",
+        shift: todaySched.shift,
+        expectedEntryTime: expectedTime,
+        expectedExitTime: calculateExpectedExitTime(expectedTime, 9),
+        source: "SCHEDULE",
+      }
+    } else {
+      const defaultShift = user.defaultShift || null
+      const matchingRule =
+        allRules.find(
+          (r: any) =>
+            (r.role === effectiveRole || r.role === null) &&
+            (!defaultShift || r.shift === defaultShift || r.shift === null) &&
+            (r.campusId === user.campusId || r.campusId === null)
+        ) || null
 
-    if (effectiveRole === Role.TECNICO) {
-      if (todaySched) {
-        let expectedTime = todaySched.expectedEntryTime
-        const def = DEFAULT_SHIFT_TIMES[todaySched.shift] || DEFAULT_SHIFT_TIMES.MANANA
-        if (todaySched.shift === Shift.INTERMEDIO && expectedTime === "13:00") {
-          expectedTime = def.entry
-        } else if (todaySched.shift === Shift.MANANA && expectedTime === "13:00") {
-          expectedTime = def.entry
-        } else if (todaySched.shift === Shift.TARDE && ["06:00", "07:00", "08:00", "09:00", "10:00"].includes(expectedTime)) {
-          expectedTime = "13:00"
-        }
-
-        technicianAssignment = {
-          campusName: todaySched.campus?.name || user.campus?.name || "Campus Villa",
-          shift: todaySched.shift,
-          expectedEntryTime: expectedTime,
-          expectedExitTime: calculateExpectedExitTime(expectedTime, 9),
-          source: "SCHEDULE",
-        }
-      } else {
-        const defaultShift = user.defaultShift || Shift.MANANA
-        const def = DEFAULT_SHIFT_TIMES[defaultShift] || DEFAULT_SHIFT_TIMES.MANANA
-        const techRules = allRules.filter((r: any) => r.role === Role.TECNICO)
-        const matchingRule =
-          techRules.find(
-            (r: any) =>
-              (r.shift === defaultShift || r.shift === null) &&
-              (r.campusId === user.campusId || r.campusId === null)
-          ) || null
-
+      if (defaultShift || matchingRule) {
+        const shiftKey = (defaultShift || matchingRule?.shift || Shift.MANANA) as Shift
+        const def = DEFAULT_SHIFT_TIMES[shiftKey] || DEFAULT_SHIFT_TIMES.MANANA
         const expectedEntry = matchingRule?.expectedEntryTime || def.entry
         technicianAssignment = {
-          campusName: user.campus?.name || "Campus Villa",
-          shift: defaultShift,
+          campusName: user.campus?.name || "Sede Principal",
+          shift: shiftKey,
           expectedEntryTime: expectedEntry,
           expectedExitTime: calculateExpectedExitTime(expectedEntry, 9),
           source: "DEFAULT_PROFILE",
         }
       }
-    } else if (effectiveRole === Role.DOCENTE || effectiveRole === Role.PACIENTE_SIMULADO) {
-      const dailySessions = await fetchDailyProgramSessions(2800, forceFreshProgram)
-      dailyProgram = matchDailyProgramFromSessions(
-        dailySessions,
-        user.name,
-        effectiveRole,
-        user.campus?.name || "Campus Villa"
-      )
     }
 
     const formattedTodayRecords: TodayAttendanceRecordLite[] = userTodayRecords.map((r) => ({
@@ -640,15 +598,14 @@ export async function validateUserAction(
         campusId: user.campusId,
         campusName:
           technicianAssignment?.campusName ||
-          (dailyProgram?.found ? dailyProgram.campusName : null) ||
           user.campus?.name ||
-          "Campus Villa",
+          "Sede Principal",
         defaultShift: user.defaultShift,
       },
       lastRecordType: lastRecord?.type ?? null,
       todayRecords: formattedTodayRecords,
       technicianAssignment,
-      dailyProgram,
+      dailyProgram: null,
     }
 
     if (cachedDirectory) {
@@ -962,17 +919,15 @@ export async function registerAttendanceAction(data: RegisterAttendanceData) {
         where: { id: data.userId },
         include: { campus: true },
       }),
-      data.role === Role.TECNICO
-        ? prisma.technicianSchedule.findUnique({
-            where: {
-              userId_date: {
-                userId: data.userId,
-                date: limaDateStr,
-              },
-            },
-            include: { campus: true },
-          })
-        : Promise.resolve(null),
+      prisma.technicianSchedule.findUnique({
+        where: {
+          userId_date: {
+            userId: data.userId,
+            date: limaDateStr,
+          },
+        },
+        include: { campus: true },
+      }),
       getCachedCampusesList(),
       getCachedCoursesList(),
       getCachedToleranceRulesList(),
@@ -982,28 +937,26 @@ export async function registerAttendanceAction(data: RegisterAttendanceData) {
       return { success: false, message: "El usuario ya no existe en el sistema." }
     }
 
-    if (data.role === Role.TECNICO) {
-      if (scheduledShift && scheduledShift.shift === Shift.DESCANSO) {
-        return {
-          success: false,
-          message: `Hoy tienes asignado tu DÍA DE DESCANSO programado. ¡Que tengas un buen descanso!`,
-        }
+    if (scheduledShift && scheduledShift.shift === Shift.DESCANSO) {
+      return {
+        success: false,
+        message: `Hoy tienes asignado tu DÍA DE DESCANSO programado. ¡Que tengas un buen descanso!`,
       }
+    }
 
-      if (scheduledShift && scheduledShift.shift === Shift.COMISION) {
-        return {
-          success: false,
-          isComision: true,
-          message: `✈️ Hola ${user.name}, hoy estás en COMISIÓN DE SERVICIO / EVENTO ESPECIAL (EV) en provincia según el cronograma oficial. No es necesario marcar asistencia.`,
-        }
+    if (scheduledShift && scheduledShift.shift === Shift.COMISION) {
+      return {
+        success: false,
+        isComision: true,
+        message: `✈️ Hola ${user.name}, hoy estás en COMISIÓN DE SERVICIO / EVENTO ESPECIAL (EV) según el cronograma. No es necesario marcar asistencia.`,
       }
+    }
 
-      if (!scheduledShift && user.defaultShift === Shift.COMISION) {
-        return {
-          success: false,
-          isComision: true,
-          message: `✈️ Hola ${user.name}, te encuentras asignado a COMISIÓN DE SERVICIO / EVENTO ESPECIAL (EV) en provincia. No es necesario marcar asistencia.`,
-        }
+    if (!scheduledShift && user.defaultShift === Shift.COMISION) {
+      return {
+        success: false,
+        isComision: true,
+        message: `✈️ Hola ${user.name}, te encuentras asignado a COMISIÓN DE SERVICIO / EVENTO ESPECIAL (EV). No es necesario marcar asistencia.`,
       }
     }
 
@@ -1102,63 +1055,8 @@ export async function registerAttendanceAction(data: RegisterAttendanceData) {
       }
     }
 
-    // Si es Docente o Paciente Simulado y no vino courseId o expectedEntryTime, consultar programación diaria en caché
-    let resolvedCourseName = data.courseId?.trim() || ""
-    let resolvedExpectedEntryTime = data.expectedEntryTime?.trim() || ""
-
-    if ((data.role === Role.DOCENTE || data.role === Role.PACIENTE_SIMULADO) && (!resolvedCourseName || !resolvedExpectedEntryTime)) {
-      try {
-        const prog = await getDailyProgramForUser(user.name, data.role, resolvedCampusName)
-        if (prog.found) {
-          // Marcaciones previas del día para saber qué módulo le corresponde marcar:
-          // se reutilizan desde el directorio en memoria (0ms) y solo se consulta la BD si no están disponibles
-          const cachedTodayRecs: TodayAttendanceRecordLite[] | undefined =
-            cachedDirectory?.data[user.dni]?.todayRecords
-          let todayRecsForModules: TodayAttendanceRecordLite[]
-
-          if (Array.isArray(cachedTodayRecs)) {
-            todayRecsForModules = cachedTodayRecs
-          } else {
-            const limaOffset = -5 * 60 * 60 * 1000
-            const limaDay = new Date(recordTimestamp.getTime() + limaOffset)
-            limaDay.setUTCHours(0, 0, 0, 0)
-            const startOfDayUTC = new Date(limaDay.getTime() - limaOffset)
-            const endOfDayUTC = new Date(startOfDayUTC.getTime() + 24 * 60 * 60 * 1000)
-
-            const existingTodayRecs = await prisma.attendanceRecord.findMany({
-              where: {
-                userId: user.id,
-                timestamp: { gte: startOfDayUTC, lt: endOfDayUTC },
-              },
-              orderBy: { timestamp: "asc" },
-              select: { type: true, timestamp: true, course: { select: { name: true } } },
-            })
-            todayRecsForModules = existingTodayRecs.map((r) => ({
-              type: r.type,
-              timestamp: r.timestamp.toISOString(),
-              courseName: r.course?.name || null,
-            }))
-          }
-
-          const modResolution = resolveUserModulesState(
-            prog.sessions,
-            todayRecsForModules,
-            getCurrentLimaMinutes(recordTimestamp),
-            data.role
-          )
-
-          const targetMod = modResolution.activeModule
-          if (!resolvedCourseName) {
-            resolvedCourseName = targetMod?.courseName || prog.courseName || ""
-          }
-          if (!resolvedExpectedEntryTime) {
-            resolvedExpectedEntryTime = targetMod?.horaInicio || prog.entryTime || ""
-          }
-        }
-      } catch (err) {
-        console.warn("[registerAttendanceAction] No se pudo consultar programación diaria:", err)
-      }
-    }
+    const resolvedCourseName = data.courseId?.trim() || ""
+    const resolvedExpectedEntryTime = data.expectedEntryTime?.trim() || ""
 
     // Resolver Course ID desde caché en memoria (evita roundtrip adicional a la BD)
     let finalCourseId: string | null = null
@@ -1181,139 +1079,93 @@ export async function registerAttendanceAction(data: RegisterAttendanceData) {
     let status: RecordStatus = RecordStatus.A_TIEMPO
     
     if (data.type === RecordType.ENTRADA) {
-      if (data.role === Role.TECNICO) {
-        let techRule: {
-          expectedEntryTime: string
-          earlyEntryToleranceMinutes: number
-          gracePeriodMinutes: number
-          lateToleranceMinutes: number
-          shiftName?: string
-          enableEarlyTolerance?: boolean
-          enableLateTolerance?: boolean
-        } | null = null
+      const currentDayOfWeek = limaDayOfWeek(recordTimestamp)
+      const userShift = (data.shift || scheduledShift?.shift || user.defaultShift || null) as Shift | null
 
-        const currentDayOfWeek = limaDayOfWeek(recordTimestamp)
-        let userShift = (data.shift || scheduledShift?.shift || user.defaultShift || Shift.MANANA) as Shift
+      // Filtrar reglas aplicables a este rol y sede
+      const roleRules = allRules.filter(
+        (r: any) =>
+          (r.role === data.role || r.role === null) &&
+          (r.campusId === finalCampusId || r.campusId === null)
+      )
 
-        if (!data.shift && !scheduledShift && currentDayOfWeek === 0 && userShift === Shift.TARDE) {
-          userShift = Shift.INTERMEDIO
-        }
+      const matchingShiftRules = userShift
+        ? roleRules.filter((r: any) => !r.shift || r.shift === userShift)
+        : roleRules
 
-        const defShift = DEFAULT_SHIFT_TIMES[userShift] || DEFAULT_SHIFT_TIMES.MANANA
+      const rulesForToday = matchingShiftRules.filter((r: any) => {
+        if (!r.daysOfWeek || r.daysOfWeek.trim() === "" || r.daysOfWeek === "ALL") return true
+        const days = r.daysOfWeek.split(",").map((d: string) => Number(d.trim()))
+        return days.includes(currentDayOfWeek)
+      })
 
-        // Filtrar desde reglas en memoria
-        const shiftRules = allRules.filter(
-          (r: any) =>
-            r.role === Role.TECNICO && (r.campusId === finalCampusId || r.campusId === null)
-        )
+      let matchedRule: any = null
+      const candidateRules = rulesForToday.length > 0 ? rulesForToday : matchingShiftRules
 
-        const matchingShiftRules = shiftRules.filter((r: any) => {
-          if (r.shift) {
-            if (r.shift === userShift) return true
-            if (currentDayOfWeek === 0 && userShift === Shift.MANANA && r.shift === Shift.INTERMEDIO) return true
-            return false
-          }
-          if (userShift === Shift.INTERMEDIO) return ["08:00", "09:00", "10:00"].includes(r.expectedEntryTime)
-          if (userShift === Shift.MANANA) return ["06:00", ...(currentDayOfWeek === 0 ? ["09:00", "10:00"] : [])].includes(r.expectedEntryTime)
-          if (userShift === Shift.TARDE) return r.expectedEntryTime === "13:00"
-          if (userShift === Shift.NOCHE) return r.expectedEntryTime === "21:00"
-          return r.expectedEntryTime === defShift.entry
+      if (candidateRules.length > 0) {
+        // Priorizar reglas con rol y sede específicos, luego más cercana en hora
+        candidateRules.sort((a: any, b: any) => {
+          const specA = (a.campusId ? 2 : 0) + (a.role ? 2 : 0) + (a.shift ? 1 : 0)
+          const specB = (b.campusId ? 2 : 0) + (b.role ? 2 : 0) + (b.shift ? 1 : 0)
+          if (specA !== specB) return specB - specA
+          const diffA = Math.abs(getShiftDiffInMinutes(recordTimestamp, a.expectedEntryTime).diffInMinutes)
+          const diffB = Math.abs(getShiftDiffInMinutes(recordTimestamp, b.expectedEntryTime).diffInMinutes)
+          return diffA - diffB
         })
+        matchedRule = candidateRules[0]
+      }
 
-        const rulesForToday = matchingShiftRules.filter((r: any) => {
-          if (!r.daysOfWeek || r.daysOfWeek.trim() === "" || r.daysOfWeek === "ALL") return true
-          const days = r.daysOfWeek.split(",").map((d: string) => Number(d.trim()))
-          return days.includes(currentDayOfWeek)
-        })
+      if (scheduledShift || matchedRule || resolvedExpectedEntryTime) {
+        const defShift = userShift ? DEFAULT_SHIFT_TIMES[userShift] || DEFAULT_SHIFT_TIMES.MANANA : DEFAULT_SHIFT_TIMES.MANANA
+        const resolvedEntryTime =
+          scheduledShift?.expectedEntryTime ||
+          matchedRule?.expectedEntryTime ||
+          resolvedExpectedEntryTime ||
+          defShift.entry
 
-        let matchedShiftRule = null
-        const candidateRules = rulesForToday.length > 0 ? rulesForToday : matchingShiftRules
+        const allRulesDisabledEarly =
+          roleRules.length > 0 && roleRules.every((r: any) => r.enableEarlyTolerance === false)
+        const isEarlyToleranceDisabled =
+          allRulesDisabledEarly ||
+          (matchedRule != null && matchedRule.enableEarlyTolerance === false) ||
+          scheduledShift?.enableEarlyTolerance === false
 
-        if (candidateRules.length > 0) {
-          candidateRules.sort((a: any, b: any) => {
-            const diffA = Math.abs(getShiftDiffInMinutes(recordTimestamp, a.expectedEntryTime).diffInMinutes)
-            const diffB = Math.abs(getShiftDiffInMinutes(recordTimestamp, b.expectedEntryTime).diffInMinutes)
-            return diffA - diffB
-          })
-          matchedShiftRule = candidateRules[0]
-        }
+        const allRulesDisabledLate =
+          roleRules.length > 0 && roleRules.every((r: any) => r.enableLateTolerance === false)
+        const isLateToleranceDisabled =
+          allRulesDisabledLate ||
+          (matchedRule != null && matchedRule.enableLateTolerance === false) ||
+          scheduledShift?.enableLateTolerance === false
 
-        let resolvedEntryTime = matchedShiftRule?.expectedEntryTime ?? defShift.entry
-        if (scheduledShift) {
-          let sTime = scheduledShift.expectedEntryTime
-          if (userShift === Shift.INTERMEDIO && sTime === "13:00") {
-            sTime = resolvedEntryTime || defShift.entry
-          } else if (userShift === Shift.MANANA && sTime === "13:00") {
-            sTime = defShift.entry
-          } else if (userShift === Shift.TARDE && ["06:00", "07:00", "08:00", "09:00", "10:00"].includes(sTime)) {
-            sTime = "13:00"
-          }
-          resolvedEntryTime = sTime
-        }
-
-        const allTechRulesDisabledEarly = shiftRules.length > 0 && shiftRules.every((r: any) => r.enableEarlyTolerance === false)
-        const isEarlyToleranceDisabled = allTechRulesDisabledEarly
-          || (matchedShiftRule != null && matchedShiftRule.enableEarlyTolerance === false)
-          || scheduledShift?.enableEarlyTolerance === false
-
-        const allTechRulesDisabledLate = shiftRules.length > 0 && shiftRules.every((r: any) => r.enableLateTolerance === false)
-        const isLateToleranceDisabled = allTechRulesDisabledLate
-          || (matchedShiftRule != null && matchedShiftRule.enableLateTolerance === false)
-          || scheduledShift?.enableLateTolerance === false
-
-        const earlyMins = matchedShiftRule?.earlyEntryToleranceMinutes ?? scheduledShift?.earlyEntryToleranceMinutes ?? defShift.early
-        const graceMins = matchedShiftRule?.gracePeriodMinutes ?? scheduledShift?.gracePeriodMinutes ?? defShift.grace
-        const lateMins = matchedShiftRule?.lateToleranceMinutes ?? scheduledShift?.lateToleranceMinutes ?? defShift.late
-
-        techRule = {
+        const evalRule = {
           expectedEntryTime: resolvedEntryTime,
-          earlyEntryToleranceMinutes: earlyMins,
-          gracePeriodMinutes: graceMins,
-          lateToleranceMinutes: lateMins,
-          shiftName: userShift,
+          earlyEntryToleranceMinutes:
+            scheduledShift?.earlyEntryToleranceMinutes ??
+            matchedRule?.earlyEntryToleranceMinutes ??
+            defShift.early,
+          gracePeriodMinutes:
+            scheduledShift?.gracePeriodMinutes ??
+            matchedRule?.gracePeriodMinutes ??
+            defShift.grace,
+          lateToleranceMinutes:
+            scheduledShift?.lateToleranceMinutes ??
+            matchedRule?.lateToleranceMinutes ??
+            defShift.late,
+          shiftName: userShift || undefined,
           enableEarlyTolerance: !isEarlyToleranceDisabled,
           enableLateTolerance: !isLateToleranceDisabled,
         }
 
-        const earlyCheck = validateEarlyEntry(recordTimestamp, techRule)
+        const earlyCheck = validateEarlyEntry(recordTimestamp, evalRule)
         if (!earlyCheck.allowed) {
           return {
             success: false,
             message: earlyCheck.message || "No se permite marcar con tanta anticipación para su turno asignado.",
           }
         }
-        status = calculateStatusFromRule(recordTimestamp, techRule)
+        status = calculateStatusFromRule(recordTimestamp, evalRule)
       } else {
-        const matchedRule = findApplicableToleranceRule(allRules, finalCampusId || undefined, data.role)
-        if (resolvedExpectedEntryTime) {
-          const dynamicRule = {
-            expectedEntryTime: resolvedExpectedEntryTime,
-            earlyEntryToleranceMinutes: matchedRule?.earlyEntryToleranceMinutes ?? 30,
-            gracePeriodMinutes: matchedRule?.gracePeriodMinutes ?? 10,
-            lateToleranceMinutes: matchedRule?.lateToleranceMinutes ?? 30,
-            enableEarlyTolerance: matchedRule?.enableEarlyTolerance ?? false,
-            enableLateTolerance: matchedRule?.enableLateTolerance ?? true,
-          }
-          const earlyCheck = validateEarlyEntry(recordTimestamp, dynamicRule)
-          if (!earlyCheck.allowed) {
-            return {
-              success: false,
-              message: earlyCheck.message || "No se permite marcar con tanta anticipación.",
-            }
-          }
-          status = calculateStatusFromRule(recordTimestamp, dynamicRule)
-        } else if (matchedRule) {
-          const earlyCheck = validateEarlyEntry(recordTimestamp, matchedRule)
-          if (!earlyCheck.allowed) {
-            return {
-              success: false,
-              message: earlyCheck.message || "No se permite marcar con tanta anticipación.",
-            }
-          }
-          status = calculateStatusFromRule(recordTimestamp, matchedRule)
-        } else {
-          status = RecordStatus.A_TIEMPO
-        }
+        status = RecordStatus.A_TIEMPO
       }
     }
 

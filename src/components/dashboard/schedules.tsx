@@ -216,7 +216,7 @@ export function DashboardSchedules({ initialSchedules = [], technicians = [], ca
       const res = await getOvertimeReportAction({
         startDate,
         endDate,
-        role: "TECNICO",
+        role: "ALL",
       })
 
       if (res.success && res.staffSummaries) {
