@@ -22,8 +22,12 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Portal de Asistencia Institucional",
+  title: "Portal de Asistencia - I.E.P. El Buen Maestro",
   description: "Registro de asistencia para Docentes y Personal Administrativo",
+  icons: {
+    icon: "/logo.jpg",
+    apple: "/logo.jpg",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

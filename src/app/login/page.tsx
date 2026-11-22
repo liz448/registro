@@ -49,6 +49,9 @@ export default function LoginPage() {
 
       <div className="bg-white p-8 md:p-12 rounded-[2rem] shadow-2xl max-w-md w-full border border-slate-100 z-10 animate-fade-in-up">
         <div className="text-center mb-8">
+          <div className="w-20 h-20 mx-auto mb-4 bg-white p-1.5 rounded-2xl shadow-md border border-slate-100 flex items-center justify-center">
+            <img src="/logo.jpg" alt="Logo I.E.P. El Buen Maestro" className="w-full h-full object-contain" />
+          </div>
           <h2 className="text-3xl font-black text-[#0B1B3D]">Admin<span className="text-[#1967D2]">Panel</span></h2>
           <p className="text-slate-500 text-sm mt-2 font-medium">Ingresa tus credenciales seguras</p>
         </div>

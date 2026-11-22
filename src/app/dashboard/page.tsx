@@ -182,9 +182,16 @@ export default async function DashboardPage() {
       <div className="w-72 bg-[#0B1B3D] text-white shadow-2xl flex flex-col shrink-0 z-20">
         
         {/* Cabecera / Logo del Sidebar */}
-        <div className="p-8 border-b border-white/10">
-          <h2 className="text-2xl font-black tracking-tight">Admin<span className="text-[#1967D2]">Panel</span></h2>
-          <p className="text-xs text-slate-400 mt-2 font-medium tracking-wide uppercase">Control de Asistencia</p>
+        <div className="p-6 border-b border-white/10">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-11 h-11 bg-white rounded-xl p-1 shrink-0 flex items-center justify-center shadow-sm">
+              <img src="/logo.jpg" alt="Logo Colegio" className="w-full h-full object-contain" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black tracking-tight leading-tight">Admin<span className="text-[#1967D2]">Panel</span></h2>
+              <p className="text-[10px] text-slate-400 font-medium tracking-wide uppercase">I.E.P. El Buen Maestro</p>
+            </div>
+          </div>
           {session.campusName ? (
             <div className="mt-3 px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-400/25 text-xs font-bold text-emerald-200">
               📍 Vista: {session.campusName}

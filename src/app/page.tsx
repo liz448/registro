@@ -25,8 +25,8 @@ export default async function Home() {
         
         {/* Encabezado y Logo adaptativo a celulares y escritorio */}
         <div className="flex flex-col items-center mb-3.5 sm:mb-5 md:mb-7 w-full animate-fade-in-up">
-          <div className="w-full max-w-[155px] sm:max-w-[200px] md:max-w-[260px] mb-2.5 sm:mb-4 md:mb-5 bg-white px-4 py-2.5 sm:p-4 md:p-5 rounded-2xl md:rounded-[2rem] shadow-[0_16px_32px_-12px_rgba(0,0,0,0.4)] transition-transform hover:scale-105 duration-500 flex justify-center items-center">
-            <img src="https://i.imgur.com/E44OxzM.png" alt="Logo" className="w-full h-auto max-h-[38px] sm:max-h-[52px] md:max-h-[70px] object-contain drop-shadow-sm" />
+          <div className="w-24 h-24 sm:w-28 sm:h-28 md:w-36 md:h-36 mb-2.5 sm:mb-4 md:mb-5 bg-white p-2 sm:p-2.5 md:p-3 rounded-2xl md:rounded-[2rem] shadow-[0_16px_32px_-12px_rgba(0,0,0,0.4)] transition-transform hover:scale-105 duration-500 flex justify-center items-center">
+            <img src="/logo.jpg" alt="Logo I.E.P. El Buen Maestro" className="w-full h-full object-contain drop-shadow-sm" />
           </div>
           <div className="text-center space-y-0.5 sm:space-y-1">
             <h1 className="text-2xl sm:text-3xl md:text-5xl font-extrabold text-white tracking-tight drop-shadow-lg leading-tight">
@@ -34,7 +34,7 @@ export default async function Home() {
             </h1>
             {/* 2. SUBTÍTULO ELEGANTE */}
             <p className="text-blue-200/80 font-bold tracking-[0.16em] sm:tracking-[0.2em] uppercase text-[10px] sm:text-xs md:text-sm pt-0.5 sm:pt-1 drop-shadow-md">
-              Control de Personal Docente y Administrativo
+              I.E.P. &quot;El Buen Maestro&quot; • Control Docente y Administrativo
             </p>
           </div>
 
