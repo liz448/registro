@@ -153,7 +153,9 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
     campusId?: string | null
     campusName?: string | null
     defaultShift?: string | null
+    courses?: { id: string; name: string }[]
   } | null>(null)
+  const [selectedCourseName, setSelectedCourseName] = useState<string>("")
   const [technicianAssignment, setTechnicianAssignment] = useState<{
     campusName: string | null
     shift: string
@@ -562,6 +564,7 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
     if (kioskConfig || forceClearRemembered) {
       form.reset({ dni: "" })
       setValidatedUser(null)
+      setSelectedCourseName("")
       setTodayLastRecord(null)
       setTodayRecords([])
       setTechnicianAssignment(null)
@@ -581,6 +584,7 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
       validateDni(watchDni)
     } else {
       setValidatedUser(null)
+      setSelectedCourseName("")
       setTodayLastRecord(null)
       setTodayRecords([])
       setTechnicianAssignment(null)
@@ -611,6 +615,7 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
     // Si el DNI ingresado ya pertenece al celular de otro compañero
     if (res?.isDniBoundToOtherDevice) {
       setValidatedUser(null)
+      setSelectedCourseName("")
       setTodayLastRecord(null)
       setTodayRecords([])
       setTechnicianAssignment(null)
@@ -627,6 +632,11 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
 
     if (res.success && res.user) {
       setValidatedUser(res.user)
+      if (res.user?.courses && res.user.courses.length > 0) {
+        setSelectedCourseName(res.user.courses[0].name)
+      } else {
+        setSelectedCourseName("")
+      }
 
       // En cualquier celular/dispositivo personal (!kioskConfig), vincular y bloquear el DNI en este equipo
       if (!kioskConfig && typeof window !== "undefined") {
@@ -662,6 +672,7 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
         setHasRememberedDni(true)
       }
       setValidatedUser(null)
+      setSelectedCourseName("")
       setTodayLastRecord(null)
       setTodayRecords([])
       setTechnicianAssignment(null)
@@ -1077,7 +1088,7 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
       validatedUser?.campusName ||
       kioskConfig?.campusName ||
       "Sede Principal"
-    const resolvedCourse = undefined
+    const resolvedCourse = selectedCourseName || undefined
     const resolvedExpectedEntry = technicianAssignment?.expectedEntryTime
 
     setIsSubmitting(type)
@@ -1682,6 +1693,48 @@ export default function AttendanceForm({ campuses: propCampuses }: AttendanceFor
                         </div>
                       </div>
                     </div>
+
+                    {/* Cursos / Asignaturas asignadas para Docentes */}
+                    {validatedUser.role === Role.DOCENTE && validatedUser.courses && validatedUser.courses.length > 0 && (
+                      <div className="bg-white/90 rounded-lg sm:rounded-xl p-2.5 sm:p-3.5 border border-slate-200/70 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                            <BookOpen size={13} className="text-[#1967D2]" />
+                            {validatedUser.courses.length === 1 ? "Curso Asignado" : "Selecciona el Curso de la Clase"}
+                          </p>
+                          {validatedUser.courses.length > 1 && (
+                            <span className="text-[10px] font-black text-[#1967D2]">
+                              {validatedUser.courses.length} cursos
+                            </span>
+                          )}
+                        </div>
+
+                        {validatedUser.courses.length === 1 ? (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-black">
+                            <span>📚</span>
+                            <span>{validatedUser.courses[0].name}</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 pt-0.5">
+                            {validatedUser.courses.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => setSelectedCourseName(c.name)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                                  selectedCourseName === c.name
+                                    ? "bg-[#1967D2] text-white shadow-xs"
+                                    : "bg-white border border-slate-200 text-slate-700 hover:border-blue-300"
+                                }`}
+                              >
+                                <span>📚</span>
+                                <span>{c.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 

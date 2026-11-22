@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Edit, Trash2, Users, AlertTriangle, Loader2, UserPlus, UserCircle, FileSpreadsheet, Shield, Smartphone } from "lucide-react"
+import { Search, Edit, Trash2, Users, AlertTriangle, Loader2, UserPlus, UserCircle, FileSpreadsheet, Shield, Smartphone, BookOpen } from "lucide-react"
 import { toast } from "sonner"
 import { editUserAction, deleteUserAction, createUserAction, createAdminAction } from "@/actions/users"
 import { getDeviceBindingsOverviewAction, adminResetUserDeviceBindingAction } from "@/actions/attendance"
@@ -43,10 +43,12 @@ const ROLE_DISPLAY: Record<string, string> = {
 export function DashboardUsers({
   users,
   campuses = [],
+  courses = [],
   currentUserRole = "SUPER_ADMIN",
 }: {
   users: any[]
   campuses?: { id: string; name: string }[]
+  courses?: { id: string; name: string }[]
   currentUserRole?: "SUPER_ADMIN" | "ADMIN_SECUNDARIO"
 }) {
   const [searchTerm, setSearchTerm] = useState("")
@@ -124,6 +126,7 @@ export function DashboardUsers({
         role: editingUser.role as Role,
         campusId: editingUser.campusId || null,
         defaultShift: editingUser.defaultShift || null,
+        courseIds: editingUser.role === "DOCENTE" ? (editingUser.courseIds || []) : [],
       })
 
       if (res.success) {
@@ -182,6 +185,7 @@ export function DashboardUsers({
       role: addingUser.role as Role,
       campusId: addingUser.campusId || null,
       defaultShift: addingUser.defaultShift || null,
+      courseIds: addingUser.role === "DOCENTE" ? (addingUser.courseIds || []) : [],
     })
 
     if (res.success) {
@@ -250,6 +254,7 @@ export function DashboardUsers({
                     <TableHead className="px-6 font-bold text-slate-500 py-4">Nombre Completo</TableHead>
                     <TableHead className="font-bold text-slate-500">DNI</TableHead>
                     <TableHead className="font-bold text-slate-500">Rol</TableHead>
+                    <TableHead className="font-bold text-slate-500">Cursos Asignados</TableHead>
                     <TableHead className="font-bold text-slate-500">Sede Base</TableHead>
                     <TableHead className="font-bold text-slate-500">Turno</TableHead>
                     <TableHead className="text-right px-8 font-bold text-slate-500">Acciones</TableHead>
@@ -258,7 +263,7 @@ export function DashboardUsers({
                 <TableBody>
                   {filteredUsers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-16 text-slate-500 font-medium text-lg">
+                      <TableCell colSpan={7} className="text-center py-16 text-slate-500 font-medium text-lg">
                         No se encontraron usuarios que coincidan con la búsqueda.
                       </TableCell>
                     </TableRow>
@@ -282,6 +287,27 @@ export function DashboardUsers({
                               </span>
                             )}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {user.role === "DOCENTE" ? (
+                            user.courses && user.courses.length > 0 ? (
+                              <div className="flex flex-wrap gap-1 max-w-[240px]">
+                                {user.courses.map((c: any) => (
+                                  <span
+                                    key={c.id}
+                                    className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold flex items-center gap-1"
+                                  >
+                                    <BookOpen size={11} className="text-emerald-600" />
+                                    {c.name}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-xs italic">Sin cursos asignados</span>
+                            )
+                          ) : (
+                            <span className="text-slate-400 text-xs">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-xs font-bold text-slate-600">
                           {user.campus?.name ? (
@@ -361,7 +387,20 @@ export function DashboardUsers({
                           >
                             <Shield size={16} />
                           </Button>
-                          <Button variant="outline" size="icon" onClick={() => setEditingUser({ ...user, oldDni: user.dni, campusId: user.campusId || "", defaultShift: user.defaultShift || "" })} className="h-9 w-9 text-blue-600 border-blue-200 hover:bg-blue-100 hover:text-blue-800 rounded-xl transition-colors shadow-sm">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() =>
+                              setEditingUser({
+                                ...user,
+                                oldDni: user.dni,
+                                campusId: user.campusId || "",
+                                defaultShift: user.defaultShift || "",
+                                courseIds: user.courses?.map((c: any) => c.id) || [],
+                              })
+                            }
+                            className="h-9 w-9 text-blue-600 border-blue-200 hover:bg-blue-100 hover:text-blue-800 rounded-xl transition-colors shadow-sm"
+                          >
                             <Edit size={16} />
                           </Button>
                           <Button variant="outline" size="icon" onClick={() => setDeletingUser(user)} className="h-9 w-9 text-rose-600 border-rose-200 hover:bg-rose-100 hover:text-rose-800 rounded-xl transition-colors shadow-sm">
@@ -382,7 +421,7 @@ export function DashboardUsers({
       <Modal isOpen={addingMethod} onClose={() => setAddingMethod(false)} title="Registrar Usuarios">
         <p className="text-slate-500 font-medium text-center mb-6">Selecciona cómo deseas ingresar a los nuevos usuarios al sistema.</p>
         <div className="grid grid-cols-2 gap-4 mb-8">
-          <button onClick={() => { setAddingMethod(false); setAddingUser({ name: '', dni: '', role: 'DOCENTE', defaultShift: '' }) }} className="flex flex-col items-center justify-center p-6 border-2 border-slate-200 rounded-2xl hover:border-[#1967D2] hover:bg-blue-50 transition-all group bg-white">
+          <button onClick={() => { setAddingMethod(false); setAddingUser({ name: '', dni: '', role: 'DOCENTE', defaultShift: '', courseIds: [] }) }} className="flex flex-col items-center justify-center p-6 border-2 border-slate-200 rounded-2xl hover:border-[#1967D2] hover:bg-blue-50 transition-all group bg-white">
             <UserCircle className="text-slate-400 group-hover:text-[#1967D2] mb-3 transition-colors" size={48} />
             <span className="font-extrabold text-slate-700 group-hover:text-[#1967D2]">Individual</span>
             <span className="text-xs text-slate-400 mt-1">Uno por uno</span>
@@ -447,6 +486,47 @@ export function DashboardUsers({
               <option value="ADMINISTRATIVO">Administrativo (Secretaría / Gestión / Soporte)</option>
             </select>
           </div>
+
+          {addingUser?.role === "DOCENTE" && (
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
+                <span>Cursos / Asignaturas a Cargo</span>
+                <span className="text-[11px] font-semibold text-emerald-600">
+                  {addingUser?.courseIds?.length || 0} seleccionado(s)
+                </span>
+              </label>
+              {courses.length === 0 ? (
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500">
+                  No hay cursos en el catálogo aún. Puedes crearlos desde la pestaña &quot;Sedes & Cursos&quot;.
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200 max-h-40 overflow-y-auto">
+                  {courses.map(c => {
+                    const isSelected = (addingUser?.courseIds || []).includes(c.id)
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          const curr = addingUser?.courseIds || []
+                          const next = isSelected ? curr.filter((id: string) => id !== c.id) : [...curr, c.id]
+                          setAddingUser({ ...addingUser, courseIds: next })
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          isSelected
+                            ? "bg-emerald-600 text-white shadow-xs"
+                            : "bg-white border border-slate-200 text-slate-700 hover:border-emerald-300"
+                        }`}
+                      >
+                        <span>{isSelected ? "✓" : "+"}</span>
+                        <span>{c.name}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Sede Base / Asignada</label>
@@ -537,6 +617,47 @@ export function DashboardUsers({
               <option value="ADMINISTRATIVO">Administrativo (Secretaría / Gestión / Soporte)</option>
             </select>
           </div>
+
+          {editingUser?.role === "DOCENTE" && (
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
+                <span>Cursos / Asignaturas a Cargo</span>
+                <span className="text-[11px] font-semibold text-emerald-600">
+                  {editingUser?.courseIds?.length || 0} seleccionado(s)
+                </span>
+              </label>
+              {courses.length === 0 ? (
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500">
+                  No hay cursos en el catálogo aún. Puedes crearlos desde la pestaña &quot;Sedes & Cursos&quot;.
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200 max-h-40 overflow-y-auto">
+                  {courses.map(c => {
+                    const isSelected = (editingUser?.courseIds || []).includes(c.id)
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          const curr = editingUser?.courseIds || []
+                          const next = isSelected ? curr.filter((id: string) => id !== c.id) : [...curr, c.id]
+                          setEditingUser({ ...editingUser, courseIds: next })
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          isSelected
+                            ? "bg-emerald-600 text-white shadow-xs"
+                            : "bg-white border border-slate-200 text-slate-700 hover:border-emerald-300"
+                        }`}
+                      >
+                        <span>{isSelected ? "✓" : "+"}</span>
+                        <span>{c.name}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Sede Base / Predeterminada</label>

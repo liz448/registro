@@ -13,7 +13,15 @@ import {
 } from "@/lib/admin-scope"
 
 export async function bulkUploadUsersAction(
-  data: { name: string; dni: string; role: string; campus?: string; shift?: string }[]
+  data: {
+    name: string
+    dni: string
+    role: string
+    campus?: string
+    shift?: string
+    courses?: string
+    materias?: string
+  }[]
 ) {
   try {
     let insertedCount = 0
@@ -23,15 +31,17 @@ export async function bulkUploadUsersAction(
     const session = await getAdminSession().catch(() => null)
 
     const dnis = data.map((d) => d.dni?.toString().trim()).filter((d) => d && d.length === 8)
-    const [campuses, existingUsers] = await Promise.all([
+    const [campuses, existingUsers, existingCourses] = await Promise.all([
       prisma.campus.findMany(),
       prisma.user.findMany({
         where: { dni: { in: dnis } },
         select: { id: true, dni: true },
       }),
+      prisma.course.findMany(),
     ])
 
     const campusMap = new Map(campuses.map((c) => [c.name.trim().toLowerCase(), c.id]))
+    const courseMap = new Map(existingCourses.map((c) => [c.name.trim().toLowerCase(), c.id]))
     const existingDniSet = new Set(existingUsers.map((u) => u.dni))
     const writeOperations: (() => Promise<any>)[] = []
 
@@ -108,6 +118,23 @@ export async function bulkUploadUsersAction(
         }
       }
 
+      // Procesar Cursos / Materias del Docente (separados por comas o punto y coma)
+      const userCourseIds: string[] = []
+      const rawCoursesStr = (item.courses || item.materias || "").toString().trim()
+      if (rawCoursesStr) {
+        const courseNames = rawCoursesStr.split(/[,;\/]+/).map((s) => s.trim()).filter(Boolean)
+        for (const cName of courseNames) {
+          const cKey = cName.toLowerCase()
+          let cId = courseMap.get(cKey)
+          if (!cId) {
+            const newCourse = await prisma.course.create({ data: { name: cName } })
+            courseMap.set(cKey, newCourse.id)
+            cId = newCourse.id
+          }
+          userCourseIds.push(cId)
+        }
+      }
+
       if (existingDniSet.has(dniStr)) {
         writeOperations.push(() =>
           prisma.user.update({
@@ -117,6 +144,7 @@ export async function bulkUploadUsersAction(
               role: userRole,
               campusId: finalCampusId,
               ...(defaultShift ? { defaultShift } : {}),
+              ...(userCourseIds.length > 0 ? { courses: { set: userCourseIds.map((id) => ({ id })) } } : {}),
             },
           })
         )
@@ -130,6 +158,7 @@ export async function bulkUploadUsersAction(
               role: userRole,
               campusId: finalCampusId,
               defaultShift,
+              ...(userCourseIds.length > 0 ? { courses: { connect: userCourseIds.map((id) => ({ id })) } } : {}),
             },
           })
         )
@@ -171,6 +200,7 @@ export async function editUserAction(
     role: Role
     campusId?: string | null
     defaultShift?: Shift | null | ""
+    courseIds?: string[]
   }
 ) {
   try {
@@ -185,6 +215,7 @@ export async function editUserAction(
         role: data.role,
         campusId: data.campusId !== undefined ? data.campusId || null : undefined,
         defaultShift: data.defaultShift !== undefined ? cleanShift : undefined,
+        courses: data.courseIds !== undefined ? { set: data.courseIds.map((id) => ({ id })) } : undefined,
       },
     })
 
@@ -272,6 +303,7 @@ export async function createUserAction(data: {
   role: Role
   campusId?: string | null
   defaultShift?: Shift | null | ""
+  courseIds?: string[]
 }) {
   try {
     const session = await getAdminSession().catch(() => null)
@@ -287,6 +319,10 @@ export async function createUserAction(data: {
         role: data.role,
         campusId: data.campusId || null,
         defaultShift: cleanShift,
+        courses:
+          data.courseIds && data.courseIds.length > 0
+            ? { connect: data.courseIds.map((id) => ({ id })) }
+            : undefined,
       },
     })
 

@@ -85,7 +85,10 @@ export default async function DashboardPage() {
         role: { in: ['DOCENTE', 'ADMINISTRATIVO'] },
         ...(scopedCampusId ? { campusId: scopedCampusId } : {}),
       },
-      include: { campus: { select: { id: true, name: true } } },
+      include: {
+        campus: { select: { id: true, name: true } },
+        courses: { select: { id: true, name: true } },
+      },
       orderBy: { name: 'asc' },
       take: 500,
     }),
@@ -399,6 +402,7 @@ export default async function DashboardPage() {
                 <DashboardUsers
                   users={users}
                   campuses={visibleCampuses}
+                  courses={catalogCourses}
                   currentUserRole={currentUserRole}
                 />
               </TabsContent>

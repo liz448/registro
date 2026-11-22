@@ -66,6 +66,9 @@ model User {
   campusId            String?
   campus              Campus?              @relation(fields: [campusId], references: [id])
   
+  // Cursos / Asignaturas asignadas al docente
+  courses             Course[]
+
   // Turno base (predeterminado) para técnicos
   defaultShift        Shift?
 
@@ -102,6 +105,9 @@ model Course {
   id            String    @id @default(cuid())
   name          String    @unique
   
+  // Docentes que dictan este curso
+  teachers      User[]
+
   records       AttendanceRecord[]
 
   createdAt     DateTime  @default(now())

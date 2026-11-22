@@ -473,6 +473,12 @@ export async function validateUserAction(
               name: true,
             },
           },
+          courses: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       }),
       prisma.attendanceRecord.findMany({
@@ -601,6 +607,7 @@ export async function validateUserAction(
           user.campus?.name ||
           "Sede Principal",
         defaultShift: user.defaultShift,
+        courses: user.courses || [],
       },
       lastRecordType: lastRecord?.type ?? null,
       todayRecords: formattedTodayRecords,
